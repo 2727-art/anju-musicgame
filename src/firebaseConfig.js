@@ -11,11 +11,11 @@ export const firebaseConfig = {
   appId: "1:971658327507:web:8c512dba173781efc36b26"
 };
 
-// App Check（本番公開前に enabled: true にすること。README「App Check設定手順」参照）
+// App Check（reCAPTCHA Enterprise・アプリ登録済み。enforcementはメトリクス確認後にONにする）
 export const appCheckConfig = {
-  enabled: false,
+  enabled: true,
   provider: "recaptcha-enterprise",
-  siteKey: "YOUR_RECAPTCHA_ENTERPRISE_SITE_KEY",
+  siteKey: "6Ld7rUItAAAAAMBQ15axp7yPt_WW0VJLxMCmuTd4",
   debug: false
 };
 

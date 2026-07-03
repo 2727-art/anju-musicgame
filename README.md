@@ -118,6 +118,8 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ### 6. App Check 設定（本番公開前に必須）
 
+> **現在の状態（Phase 3.6）**: reCAPTCHA Enterpriseサイトキー作成済み・Firebase App Checkへのアプリ登録済み・`appCheckConfig.enabled: true` でトークン発行を確認済み。**enforcement（適用）はまだOFF**です。Console → App Check のメトリクスで「検証済みリクエスト」の割合を数日確認し、問題なければ Firestore への enforcement をONにしてください。ONにした後はランキングの取得・送信を必ず再確認すること。
+
 1. [reCAPTCHA Enterprise](https://cloud.google.com/recaptcha-enterprise)（または reCAPTCHA v3）でサイトキーを作成し、公開ドメイン（GitHub Pagesのドメイン）を登録
 2. Console → 構築 → App Check → アプリを登録 → reCAPTCHA Enterprise プロバイダにサイトキーを設定
 3. `src/firebaseConfig.js` の `appCheckConfig` を設定:
