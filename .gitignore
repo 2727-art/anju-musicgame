@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.local
+*.log
+serviceAccount*.json
+*private*.json
+*.pem
+emulator-data/
+.firebase/
+coverage/
+.claude/

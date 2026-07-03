@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プライバシーについて — AD BREAKER</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: #12001f;
+    color: #e8d4ff;
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    line-height: 1.9;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 {
+    font-style: italic;
+    color: #ff2d95;
+    text-shadow: 0 0 12px #ff2d95;
+    font-size: 26px;
+  }
+  h2 {
+    color: #ffc93c;
+    text-shadow: 0 0 8px rgba(255, 201, 60, 0.6);
+    font-size: 18px;
+    margin-top: 32px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 6px;
+  }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .note { font-size: 13px; color: #b89ae0; }
+  .placeholder { color: #8f7bb0; font-style: italic; }
+  a { color: #2da8ff; }
+  .back {
+    display: inline-block;
+    margin-top: 32px;
+    padding: 10px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 999px;
+    color: #fff;
+    text-decoration: none;
+    background: linear-gradient(135deg, #ff2d95, #7b2dff);
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>プライバシーについて</h1>
+  <p>「AD BREAKER」（以下「本ゲーム」）が扱う情報について説明します。</p>
+
+  <h2>ランキングに保存される情報</h2>
+  <p>ランキングへの登録は、リザルト画面で「ランキングに送信」を押したときだけ行われます（自動送信はしません）。送信すると、以下の情報が Google Firebase（Cloud Firestore）に保存され、ランキングとして<strong>誰でも閲覧できる状態</strong>になります。</p>
+  <ul>
+    <li>ニックネーム（あなたが入力した名前。本名を入れないことをおすすめします）</li>
+    <li>スコア、ランク（S〜D）</li>
+    <li>最大コンボ、消去広告数、Miss数</li>
+    <li>判定内訳（PERFECT / GREAT / GOOD / OK の回数）</li>
+    <li>FEVER統計（回数・FEVER中消去数・FEVER BONUS合計）</li>
+    <li>最大同色ストリーク</li>
+    <li>プレイのシード値（ゲーム内の乱数の種）とプレイ時間</li>
+    <li>ゲームバージョン・曲ID・BPM</li>
+    <li>匿名認証ID（Firebaseが自動発行するランダムなID。画面には表示されません）</li>
+    <li>投稿日時・更新日時</li>
+  </ul>
+
+  <h2>保存しない情報</h2>
+  <ul>
+    <li>メールアドレスは保存しません</li>
+    <li>生年月日・住所・電話番号は保存しません</li>
+    <li>SNSアカウント等の外部IDは保存しません</li>
+    <li>IPアドレスを本ゲームのデータとして保存することはありません</li>
+  </ul>
+  <p class="note">※ 通信基盤として利用する Google Firebase / reCAPTCHA が、不正防止等のためにアクセス情報を処理する場合があります。詳細は <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Googleのプライバシーポリシー</a> をご確認ください。</p>
+
+  <h2>端末内（ローカルストレージ）に保存される情報</h2>
+  <p>以下はあなたのブラウザ内にのみ保存され、サーバーには送信されません。</p>
+  <ul>
+    <li>ゲーム設定（音量・ハプティクス・エフェクト量・デバッグ表示）</li>
+    <li>ローカルベストスコア</li>
+    <li>ニックネーム</li>
+  </ul>
+  <p class="note">ブラウザのサイトデータ削除でいつでも消去できます。</p>
+
+  <h2>利用しているサービス</h2>
+  <ul>
+    <li>Google Firebase（Authentication 匿名認証 / Cloud Firestore / App Check）</li>
+  </ul>
+
+  <h2>ランキングデータの削除依頼</h2>
+  <p>削除をご希望の場合は、GitHubリポジトリのIssueからご連絡ください：<br>
+    <a href="https://github.com/2727-art/anju-musicgame/issues" target="_blank" rel="noopener">https://github.com/2727-art/anju-musicgame/issues</a></p>
+  <p>ニックネームと投稿日時をお知らせいただければ、該当エントリを削除します。</p>
+
+  <h2>ゲーム内の広告表現について</h2>
+  <p>本ゲームに登場する広告バナーは、<strong>すべてゲーム演出用に作られた架空の広告</strong>です。実在の企業・商品・サービスとは関係ありません。</p>
+
+  <a class="back" href="./index.html">← ゲームに戻る</a>
+</main>
+</body>
+</html>

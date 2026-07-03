@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12001f">
+<title>AD BREAKER — 広告処理リズムゲーム</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="bg"></div>
+
+  <!-- 広告バナー層 -->
+  <div id="banner-layer"></div>
+  <!-- ×印層（常に最前面） -->
+  <div id="x-layer"></div>
+  <!-- エフェクト層 -->
+  <div id="fx-layer"></div>
+
+  <!-- 節目演出 -->
+  <div id="edge-flash" class="edge-flash"></div>
+  <div id="milestone" class="milestone"></div>
+  <div id="streak-note" class="streak-note"></div>
+
+  <!-- HUD -->
+  <header id="hud" class="hidden">
+    <div class="hud-row">
+      <div class="hud-block">
+        <div class="hud-label">SCORE</div>
+        <div id="score" class="hud-value">0</div>
+      </div>
+      <div class="hud-block" id="combo-wrap">
+        <div class="hud-label">COMBO</div>
+        <div id="combo" class="hud-value">0</div>
+      </div>
+      <button id="settings-btn" class="icon-btn" type="button" aria-label="設定">⚙</button>
+      <button id="pause-btn" class="icon-btn" type="button" aria-label="一時停止">⏸</button>
+    </div>
+    <div class="hud-row">
+      <div id="fever-gauge">
+        <div id="fever-fill"></div>
+        <span id="fever-label">FEVER</span>
+      </div>
+    </div>
+    <div class="hud-row hud-sub">
+      <div id="streak" style="visibility:hidden">STREAK</div>
+      <div id="section-name">-</div>
+    </div>
+    <div id="fever-bonus" style="visibility:hidden">FEVER BONUS +0</div>
+  </header>
+
+  <!-- FEVER終了などの発光 -->
+  <div id="flash"></div>
+
+  <!-- デバッグ表示 -->
+  <div id="debug"></div>
+
+  <!-- ローディング -->
+  <div id="loading" class="screen">
+    <div class="logo">AD<span>BREAKER</span></div>
+    <div id="loading-track"><div id="loading-bar"></div></div>
+    <div id="loading-text">読み込み中…</div>
+  </div>
+
+  <!-- START画面 -->
+  <div id="start-screen" class="screen hidden">
+    <div class="logo">AD<span>BREAKER</span></div>
+    <p class="tagline">ポップアップ広告を、ビートに乗せて処理しろ。</p>
+    <button id="start-btn" type="button">TAP TO START</button>
+    <p class="hint">×印をリズムよくタップ！ 同じ色を続けると倍率UP</p>
+    <div id="start-best" class="start-best"></div>
+    <div class="btn-row">
+      <button id="settings-btn-start" class="sub-btn" type="button">⚙ SETTINGS</button>
+      <button id="ranking-btn-start" class="sub-btn" type="button">🏆 RANKING</button>
+    </div>
+    <p class="disclaimer">※ 画面内の広告はすべてゲーム演出用の架空広告です</p>
+    <a class="privacy-link" href="privacy.html" target="_blank" rel="noopener">プライバシーについて</a>
+  </div>
+
+  <!-- 一時停止 -->
+  <div id="pause-overlay" class="screen hidden">
+    <div class="logo small">PAUSE</div>
+    <button id="resume-btn" type="button">RESUME</button>
+  </div>
+
+  <!-- 設定 -->
+  <div id="settings-overlay" class="screen hidden">
+    <div class="logo small">SETTINGS</div>
+    <div class="settings-panel">
+      <div class="setting-row">
+        <label for="set-bgm">BGM音量</label>
+        <input id="set-bgm" type="range" min="0" max="100" step="5">
+      </div>
+      <div class="setting-row">
+        <label for="set-se">SE音量</label>
+        <input id="set-se" type="range" min="0" max="100" step="5">
+      </div>
+      <div class="setting-row">
+        <span>ハプティクス</span>
+        <button id="set-haptics" class="toggle-btn" type="button">ON</button>
+      </div>
+      <div class="setting-row">
+        <span>エフェクト量</span>
+        <button id="set-effects" class="toggle-btn" type="button">NORMAL</button>
+      </div>
+      <div class="setting-row">
+        <span>デバッグ表示</span>
+        <button id="set-debug" class="toggle-btn" type="button">ON</button>
+      </div>
+    </div>
+    <button id="settings-close" type="button">CLOSE</button>
+  </div>
+
+  <!-- リザルト -->
+  <div id="result-screen" class="screen hidden">
+    <div class="logo small">RESULT</div>
+    <div id="result-rank" class="result-rank">-</div>
+    <div class="hud-label">SCORE</div>
+    <div id="result-score" class="result-score">0</div>
+    <div id="result-newbest" class="result-newbest hidden">★ NEW RECORD! ★</div>
+    <div id="result-stats" class="result-stats"></div>
+    <div id="result-best" class="result-best"></div>
+    <div id="result-seed" class="result-seed"></div>
+    <div id="submit-status" class="submit-status"></div>
+    <div class="btn-row">
+      <button id="submit-btn" class="sub-btn accent" type="button">🏆 ランキングに送信</button>
+      <button id="ranking-btn-result" class="sub-btn" type="button">ランキングを見る</button>
+    </div>
+    <button id="retry-btn" type="button">RETRY</button>
+  </div>
+
+  <!-- スコア送信（ニックネーム入力＋事前説明） -->
+  <div id="submit-modal" class="screen hidden">
+    <div class="logo small">SUBMIT</div>
+    <div class="modal-panel">
+      <p class="modal-note">ニックネーム、スコア、プレイ統計をランキングに登録します。<br>メールアドレス等の個人情報は保存しません。
+        <a class="privacy-link" href="privacy.html" target="_blank" rel="noopener">詳細</a></p>
+      <label class="modal-label" for="name-input">ニックネーム（1〜12文字）</label>
+      <input id="name-input" type="text" maxlength="24" autocomplete="off" placeholder="ANON">
+      <div class="btn-row">
+        <button id="submit-confirm-btn" class="sub-btn accent" type="button">送信する</button>
+        <button id="submit-cancel-btn" class="sub-btn" type="button">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ランキング -->
+  <div id="ranking-modal" class="screen hidden">
+    <div class="logo small">RANKING</div>
+    <div class="ranking-sub">AD BREAKER Global Ranking — TOP 50</div>
+    <div id="ranking-status" class="ranking-status"></div>
+    <ol id="ranking-list" class="ranking-list"></ol>
+    <div class="btn-row">
+      <button id="name-change-btn" class="sub-btn" type="button">名前を変更</button>
+      <button id="ranking-close-btn" class="sub-btn" type="button">CLOSE</button>
+    </div>
+    <a class="privacy-link" href="privacy.html" target="_blank" rel="noopener">プライバシーについて</a>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

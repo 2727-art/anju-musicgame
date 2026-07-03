@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// AD BREAKER Global Ranking のセキュリティルール（Phase 3）
+// - 読み取り: 誰でも可（ただし許可済みleaderboardIdのみ・listはlimit必須かつ100以下）
+// - 書き込み: 匿名認証済みユーザーが「自分のuidのドキュメント」だけ作成/更新可
+// - 削除: 禁止
+// - スキーマ・型・上限・世代(gameVersion/songId/bpm)を検証
+// - 既存より低いスコアでの上書き禁止
+// - createdAt/updatedAt は serverTimestamp 相当のみ許可
+// 注意: 上限値は src/config.js の leaderboard.limits と揃えること。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /leaderboards/{boardId}/entries/{uid} {
+
+      function isAllowedBoard() {
+        return boardId == 'adbreaker_song001_v1';
+      }
+
+      function nonNegIntMax(v, maxV) {
+        return v is int && v >= 0 && v <= maxV;
+      }
+
+      function validEntry(d) {
+        return d.keys().hasOnly([
+            'playerName', 'score', 'rank', 'maxCombo', 'clearedAds', 'missCount',
+            'perfect', 'great', 'good', 'ok',
+            'feverCount', 'feverClearedAds', 'feverTotalBonus', 'maxSameColorStreak',
+            'seed', 'gameVersion', 'songId', 'bpm', 'playDurationMs',
+            'createdAt', 'updatedAt'
+          ])
+          && d.keys().hasAll([
+            'playerName', 'score', 'rank', 'maxCombo', 'clearedAds', 'missCount',
+            'perfect', 'great', 'good', 'ok',
+            'feverCount', 'feverClearedAds', 'feverTotalBonus', 'maxSameColorStreak',
+            'seed', 'gameVersion', 'songId', 'bpm', 'playDurationMs',
+            'createdAt', 'updatedAt'
+          ])
+          && d.playerName is string
+          && d.playerName.size() >= 1
+          && d.playerName.size() <= 24
+          && nonNegIntMax(d.score, 30000000)
+          && d.rank in ['S', 'A', 'B', 'C', 'D']
+          && nonNegIntMax(d.maxCombo, 2000)
+          && nonNegIntMax(d.clearedAds, 2000)
+          && nonNegIntMax(d.missCount, 2000)
+          && nonNegIntMax(d.perfect, 5000)
+          && nonNegIntMax(d.great, 5000)
+          && nonNegIntMax(d.good, 5000)
+          && nonNegIntMax(d.ok, 5000)
+          && nonNegIntMax(d.feverCount, 20)
+          && nonNegIntMax(d.feverClearedAds, 2000)
+          && nonNegIntMax(d.feverTotalBonus, 30000000)
+          && nonNegIntMax(d.maxSameColorStreak, 2000)
+          && nonNegIntMax(d.seed, 4294967295)
+          && d.gameVersion == '3.0.0'
+          && d.songId == 'song001'
+          && d.bpm == 156
+          && d.playDurationMs is int
+          && d.playDurationMs >= 242000
+          && d.playDurationMs <= 282000
+          && d.createdAt is timestamp
+          && d.updatedAt == request.time;
+      }
+
+      allow get: if isAllowedBoard();
+
+      // limit未指定のlistは拒否される（request.query.limitがnullのため）
+      allow list: if isAllowedBoard() && request.query.limit <= 100;
+
+      allow create: if isAllowedBoard()
+        && request.auth != null
+        && request.auth.uid == uid
+        && validEntry(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isAllowedBoard()
+        && request.auth != null
+        && request.auth.uid == uid
+        && validEntry(request.resource.data)
+        && request.resource.data.score >= resource.data.score
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if false;
+    }
+
+    // 上記以外のドキュメントはすべて拒否（明示）
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
