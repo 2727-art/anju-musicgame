@@ -47,8 +47,10 @@ body.fever #bg::after {
 
 /* ---------- レイヤー ---------- */
 #banner-layer { position: fixed; inset: 0; z-index: 1; }
+.trail-layer  { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
 #x-layer      { position: fixed; inset: 0; z-index: 300; pointer-events: none; }
 #fx-layer     { position: fixed; inset: 0; z-index: 400; pointer-events: none; }
+#brain-panel  { z-index: 460; }
 #hud          { z-index: 500; }
 #flash        { z-index: 600; }
 #debug        { z-index: 700; }
@@ -153,6 +155,23 @@ body.fever #bg::after {
   to   { transform: scale(1.15); box-shadow: 0 0 22px var(--gold), 0 0 44px rgba(255, 201, 60, 0.9); }
 }
 .x-hide { pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+
+/* TARGET COLOR CHALLENGE中、ターゲット色の×印だけ控えめなパルスリング */
+.xbtn.x-target::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 2px solid var(--xc, #fff);
+  opacity: 0.7;
+  animation: target-pulse 0.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes target-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50%      { transform: scale(1.22); opacity: 0.25; }
+}
+body.fx-reduced .xbtn.x-target::after { animation: none; opacity: 0.45; }
 
 /* ---------- HUD ---------- */
 #hud {
@@ -557,6 +576,105 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 .stat-v { font-weight: 900; text-align: right; font-variant-numeric: tabular-nums; }
 .result-best { font-size: 12px; color: var(--gold); }
 .result-seed { font-size: 10px; color: #8f7bb0; font-family: Consolas, monospace; }
+
+/* ---------- TARGET COLOR CHALLENGE（Phase 4A） ---------- */
+#brain-panel {
+  position: fixed;
+  top: 128px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(18, 0, 31, 0.7);
+  border: 1px solid var(--bpc, #fff);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5), 0 0 8px var(--bpc, transparent);
+  pointer-events: none;
+  animation: brain-in 0.3s ease-out both;
+}
+@keyframes brain-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+#brain-panel.bp-red    { --bpc: var(--red); }
+#brain-panel.bp-blue   { --bpc: var(--blue); }
+#brain-panel.bp-yellow { --bpc: var(--yellow); }
+#brain-panel.bp-green  { --bpc: var(--green); }
+.bp-head {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #cfa9ff;
+}
+.bp-target {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--bpc, #fff);
+  text-shadow: 0 0 8px var(--bpc, #fff);
+}
+.bp-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bpc, #fff);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px var(--bpc, #fff);
+}
+#brain-gauge {
+  width: 54px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+#brain-gauge-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--bpc, #fff);
+  box-shadow: 0 0 6px var(--bpc, #fff);
+}
+#brain-chain {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 6px var(--bpc, #fff);
+}
+
+/* Brain Challenge リザルト欄（ローカル表示のみ） */
+.result-brain {
+  width: min(86vw, 340px);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(123, 45, 255, 0.5);
+  border-radius: 12px;
+  padding: 8px 16px;
+}
+.rb-head {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #cfa9ff;
+  text-shadow: 0 0 6px var(--purple);
+}
+.rb-stats {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+.rb-stats b { color: var(--gold); }
+.rb-note { font-size: 9px; color: #8f7bb0; }
+
+/* Brain判定ポップ */
+.pop i.j-BRAIN  { font-size: 13px; color: #fff; text-shadow: 0 0 10px var(--purple), 0 0 18px var(--pink); letter-spacing: 1px; }
+.pop i.j-BRAINR { font-size: 10px; color: #a894c8; letter-spacing: 1px; }
 
 /* ---------- ランキング（Phase 3） ---------- */
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }

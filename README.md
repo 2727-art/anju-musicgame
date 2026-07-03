@@ -52,6 +52,22 @@ node tools/generateManifest.mjs
 - FEVER中のスコアは **FEVER BONUS** に蓄積され、終了時にまとめて加算（1消去 5000 + combo×100、PERFECTは×1.2）
 - 広告を放置しすぎるとMiss扱いで自動消滅し、コンボがリセットされる
 
+## Phase 4A で追加した機能（演出・脳トレ強化）
+
+**今回はスコア計算式・ランク閾値・FEVERゲージ・同色倍率・ランキング仕様を一切変えていません。** `leaderboardId`（adbreaker_song001_v1）・`gameVersion`（3.0.0）・Firestore送信payload・Security Rules はPhase 3.6のままです。
+
+- **色付き流れ星（TrailManager）**: 同色ストリーク中、前回同色タップ位置から今回位置へ×印と同色の流れ星が走る。ストリークが伸びるほど豪華に（2=短い尾 → 3-4=星粒 → 5-6=明確な流れ星 → 7+=光の軌道+リング）。1枚のCanvasレイヤー（バナーより上・×印より下）に上限付き粒子で描画
+- **同色タップ音の音階上昇**: 同色2連続以降、タップ音がCメジャーペンタトニックで1段ずつ上昇（streak 1〜7）。8連続以上は上限音+装飾音。初回タップは従来の判定SE
+- **FEVER中の金色流れ星**: タップごとに金色スパーク＋前回タップ位置からの金色流れ星。タップ数が増えるほど星屑が増え、**FEVER BONUSカウンターへ星屑が吸い込まれる**。FEVER終了時は画面上の残り星屑がカウンターへ収束。SEも金色専用の8段上昇ラン
+- **TARGET COLOR CHALLENGE（脳トレ）**: 通常時のみ、16拍のあいだ「TARGET COLOR」が表示される。ターゲット色の×を押すと TARGET HIT!（Brain Chain加算・専用SE）、違う色を押すと BRAIN RESET（**Brain Chainのみリセット。通常コンボ・スコアは一切影響なし。広告も通常通り消える**）。FEVER中・INTRO/DROP/FINAL CHORUS/OUTROでは発生しない。ターゲット色の×印には控えめなパルスリング＋パネルには色名を文字でも表示（色覚差配慮）
+- **Brain Trainingリザルト**: 曲終了時に TARGET HIT / MAX CHAIN / RESET をローカル表示。**ランキングスコア・ローカルベスト・Firestoreには影響も送信もしない**
+- **設定追加**: 「流れ星エフェクト ON/OFF」「TARGET COLOR ON/OFF」（localStorage保存）
+- **Miss微調整**: 放置Miss時に小さなノイズ粒子を追加（既存の震え→ノイズ消滅演出はそのまま）
+
+パフォーマンス: 粒子上限は通常300 / FEVER600 / REDUCED250 / Trail OFFで0。低スペック端末では設定から「エフェクト量 REDUCED」または「流れ星エフェクト OFF」を推奨します。
+
+> **今後Brain Challengeをスコア化する場合の注意**: スコア仕様が変わるため、`leaderboardId` を `adbreaker_song001_v2` に変更し、`gameVersion` と `firestore.rules` の許可値も同時に更新して、旧スコアと混ざらないようにすること。
+
 ## Phase 3 で追加した機能（Firebaseランキング）
 
 - **AD BREAKER Global Ranking**: Firestoreに1ユーザー1件のベストスコアを保存し、TOP50を表示

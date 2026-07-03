@@ -12,10 +12,20 @@
 
   <!-- 広告バナー層 -->
   <div id="banner-layer"></div>
+  <!-- 流れ星レイヤー（バナーより上・×印より下） -->
+  <canvas id="trail-layer" class="trail-layer"></canvas>
   <!-- ×印層（常に最前面） -->
   <div id="x-layer"></div>
   <!-- エフェクト層 -->
   <div id="fx-layer"></div>
+
+  <!-- TARGET COLOR CHALLENGE（通常時のみ表示） -->
+  <div id="brain-panel" class="hidden">
+    <div class="bp-head">TARGET COLOR</div>
+    <div class="bp-target"><span id="brain-dot" class="bp-dot"></span><span id="brain-color-name">-</span></div>
+    <div id="brain-gauge"><div id="brain-gauge-fill"></div></div>
+    <div id="brain-chain">BRAIN ×0</div>
+  </div>
 
   <!-- 節目演出 -->
   <div id="edge-flash" class="edge-flash"></div>
@@ -104,6 +114,14 @@
         <button id="set-effects" class="toggle-btn" type="button">NORMAL</button>
       </div>
       <div class="setting-row">
+        <span>流れ星エフェクト</span>
+        <button id="set-trail" class="toggle-btn" type="button">ON</button>
+      </div>
+      <div class="setting-row">
+        <span>TARGET COLOR</span>
+        <button id="set-brain" class="toggle-btn" type="button">ON</button>
+      </div>
+      <div class="setting-row">
         <span>デバッグ表示</span>
         <button id="set-debug" class="toggle-btn" type="button">ON</button>
       </div>
@@ -119,6 +137,11 @@
     <div id="result-score" class="result-score">0</div>
     <div id="result-newbest" class="result-newbest hidden">★ NEW RECORD! ★</div>
     <div id="result-stats" class="result-stats"></div>
+    <div id="result-brain" class="result-brain hidden">
+      <div class="rb-head">BRAIN TRAINING</div>
+      <div id="result-brain-stats" class="rb-stats"></div>
+      <div class="rb-note">※ランキングスコアには影響しません</div>
+    </div>
     <div id="result-best" class="result-best"></div>
     <div id="result-seed" class="result-seed"></div>
     <div id="submit-status" class="submit-status"></div>

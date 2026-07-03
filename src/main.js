@@ -15,6 +15,8 @@ import { loadBest, saveIfBest } from './localRecordManager.js';
 import { buildPlayResult } from './playResultBuilder.js';
 import * as leaderboard from './leaderboardManager.js';
 import { loadPlayerName, savePlayerName } from './playerNameManager.js';
+import { TrailManager } from './trailManager.js';
+import { BrainChallengeManager } from './brainChallengeManager.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -36,6 +38,13 @@ const els = {
   settingsBtnStart: $('settings-btn-start'), settingsClose: $('settings-close'),
   setBgm: $('set-bgm'), setSe: $('set-se'), setHaptics: $('set-haptics'),
   setEffects: $('set-effects'), setDebug: $('set-debug'),
+  setTrail: $('set-trail'), setBrain: $('set-brain'),
+  // Phase 4A
+  trailLayer: $('trail-layer'),
+  brainPanel: $('brain-panel'), brainDot: $('brain-dot'),
+  brainColorName: $('brain-color-name'), brainGaugeFill: $('brain-gauge-fill'),
+  brainChain: $('brain-chain'),
+  resultBrain: $('result-brain'), resultBrainStats: $('result-brain-stats'),
   // ランキング（Phase 3）
   submitStatus: $('submit-status'), submitBtn: $('submit-btn'),
   rankingBtnResult: $('ranking-btn-result'), rankingBtnStart: $('ranking-btn-start'),
@@ -65,6 +74,8 @@ const effects = new EffectManager({
   edgeFlashEl: els.edgeFlash,
   settings,
 });
+const trailMgr = new TrailManager({ canvas: els.trailLayer, settings });
+const brainMgr = new BrainChallengeManager({ settings });
 
 let state = 'loading'; // loading | ready | playing | paused | ended
 let settingsOpen = false;
@@ -82,6 +93,9 @@ let pausedAccumMs = 0;     // ポーズ中の累計時間（playDurationMsから
 let pauseStartedAt = 0;
 let lastPlayResult = null; // ランキング送信用に保持
 let submitModalMode = 'submit'; // 'submit' | 'name-only'
+// Phase 4A: 流れ星の始点管理
+let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y}
+let feverLastTap = null;   // FEVER中: 前回タップ位置
 
 // ---------- 設定の反映 ----------
 function applySettings() {
@@ -100,6 +114,10 @@ function syncSettingsUI() {
   els.setEffects.classList.toggle('off', settings.get('effects') === 'REDUCED');
   els.setDebug.textContent = settings.get('debug') ? 'ON' : 'OFF';
   els.setDebug.classList.toggle('off', !settings.get('debug'));
+  els.setTrail.textContent = settings.get('trail') ? 'ON' : 'OFF';
+  els.setTrail.classList.toggle('off', !settings.get('trail'));
+  els.setBrain.textContent = settings.get('brain') ? 'ON' : 'OFF';
+  els.setBrain.classList.toggle('off', !settings.get('brain'));
 }
 
 // ---------- プリロード ----------
@@ -221,23 +239,72 @@ function handleTap(ad) {
   const offset = clock.nearestBeatOffsetMs(t);
   const fever = feverMgr.active;
   const res = scoreMgr.onKill(ad.color, offset);
+  const { x: tapX, y: tapY } = ad.xPos;
 
   if (fever) {
     const b = feverMgr.addBonus(scoreMgr.combo, res.judge.name);
-    effects.pop(ad.xPos.x, ad.xPos.y - 30,
+    effects.pop(tapX, tapY - 30,
       `<b>FEVER +${b.toLocaleString()}</b><i class="j-GOLD">GOLD!!</i>`, 'pop-gold');
-    effects.burst(ad.xPos.x, ad.xPos.y, 'gold', true);
-    audioMgr.feverTap();
+    effects.burst(tapX, tapY, 'gold', true);
+    // 金色流れ星（前回FEVERタップ位置から接続）＋BONUSカウンターへの星屑吸い込み
+    if (feverLastTap) {
+      trailMgr.spawnFeverTrail({
+        fromX: feverLastTap.x, fromY: feverLastTap.y,
+        toX: tapX, toY: tapY, feverTapCount: feverMgr.kills,
+      });
+    } else {
+      trailMgr.spawnTapSpark({ x: tapX, y: tapY, color: 'gold', intensity: 1.4 });
+      trailMgr.spawnBonusAbsorb({ x: tapX, y: tapY, count: 2 });
+    }
+    feverLastTap = { x: tapX, y: tapY };
+    audioMgr.playFeverGoldTap({ feverTapCount: feverMgr.kills });
     haptics.feverTap();
   } else {
     lastTappedColor = ad.color;
     scoreMgr.addScore(res.points);
     feverMgr.addGauge(res.judge.name, res.streakMult, t);
-    effects.pop(ad.xPos.x, ad.xPos.y - 30,
+
+    // TARGET COLOR CHALLENGE 判定（スコア・コンボ・ゲージには一切影響しない）
+    let brainResult = null;
+    if (brainMgr.active) {
+      brainResult = brainMgr.onTap(ad.color);
+      if (brainResult === 'hit') {
+        effects.pop(tapX, tapY - 54,
+          `<i class="j-BRAIN">${CONFIG.brainChallenge.targetHitLabel} ×${brainMgr.stats.brainChain}</i>`, '');
+        audioMgr.playBrainTargetHit({ brainStreak: brainMgr.stats.brainChain });
+        haptics.tap();
+      } else if (brainResult === 'reset') {
+        // 失敗演出は控えめに（通常Miss扱いにしない・コンボも切らない）
+        effects.pop(tapX, tapY - 54,
+          `<i class="j-BRAINR">${CONFIG.brainChallenge.resetLabel}</i>`, '');
+        audioMgr.playBrainReset();
+      }
+    }
+
+    effects.pop(tapX, tapY - 30,
       `<b>+${res.points.toLocaleString()}</b><i class="j-${res.judge.name}">${judgeLabel(res.judge.name)}</i>`,
       `pop-${ad.color}`);
-    effects.burst(ad.xPos.x, ad.xPos.y, ad.color, false);
-    judgeSe[res.judge.name]();
+    effects.burst(tapX, tapY, ad.color, false);
+
+    // 色付き流れ星: 同色2連続以上なら前回同色位置から接続、それ以外はスパークのみ
+    const prev = lastTapByColor[ad.color];
+    const trailIntensity = brainResult === 'hit' ? 1.6 : 1;
+    if (res.streakCount >= 2 && prev) {
+      trailMgr.spawnColorTrail({
+        fromX: prev.x, fromY: prev.y, toX: tapX, toY: tapY,
+        color: ad.color, streak: res.streakCount,
+      });
+    } else {
+      trailMgr.spawnTapSpark({ x: tapX, y: tapY, color: ad.color, intensity: trailIntensity });
+    }
+    lastTapByColor[ad.color] = { x: tapX, y: tapY };
+
+    // 同色2連続以上は音階上昇タップ音、初回（streak 1）は既存の判定SE
+    if (res.streakCount >= 2) {
+      audioMgr.playColorStreakTap({ streak: res.streakCount, judgement: res.judge.name });
+    } else {
+      judgeSe[res.judge.name]();
+    }
     if (res.judge.name === 'PERFECT') haptics.perfect(); else haptics.tap();
     onStreakProgress(res, ad);
   }
@@ -256,8 +323,32 @@ function judgeLabel(name) {
 function handleMiss(ad) {
   scoreMgr.onMiss();
   effects.pop(ad.xPos.x, ad.xPos.y - 20, `<i class="j-MISS">MISS</i>`, 'pop-miss');
+  // 「閉じ損ねた」感を足す小さなノイズ粒子（Trailは出さない）
+  trailMgr.spawnTapSpark({ x: ad.xPos.x, y: ad.xPos.y, color: 'miss', intensity: 0.6 });
   audioMgr.miss();
   haptics.miss();
+}
+
+// ---------- Brain Challenge UI ----------
+const COLOR_JP = { red: '赤', blue: '青', yellow: '黄', green: '緑' };
+
+function showBrainPanel(color) {
+  els.brainPanel.className = `bp-${color}`;
+  els.brainColorName.textContent = COLOR_JP[color] || color;
+  els.brainChain.textContent = `BRAIN ×${brainMgr.stats.brainChain}`;
+  els.brainPanel.classList.remove('hidden');
+}
+
+function hideBrainPanel() {
+  els.brainPanel.classList.add('hidden');
+}
+
+// ターゲット色の×印に控えめなパルスリングを付け外しする
+function markTargetXButtons() {
+  for (const ad of bannerMgr.active) {
+    if (ad.state !== 'alive') continue;
+    ad.xEl.classList.toggle('x-target', brainMgr.isTarget(ad.color));
+  }
 }
 
 // ---------- スポーン制御 ----------
@@ -266,12 +357,18 @@ function currentDensity() {
   return clock.section;
 }
 
+// スポーンの共通経路。Brain Challenge中はターゲット色×印へマーキングも行う
+function spawnOne(songTime) {
+  const ad = bannerMgr.spawn({ color: nextColor(), songTime, fever: feverMgr.active });
+  if (ad && brainMgr.isTarget(ad.color)) ad.xEl.classList.add('x-target');
+  return ad;
+}
+
 function refill(songTime) {
   const cfg = currentDensity();
   let guard = 0;
   while (bannerMgr.activeCount < cfg.minActive && guard++ < 20) {
-    const ok = bannerMgr.spawn({ color: nextColor(), songTime, fever: feverMgr.active });
-    if (!ok) break;
+    if (!spawnOne(songTime)) break;
   }
 }
 
@@ -282,7 +379,7 @@ function spawnTick(songTime) {
   let guard = 0;
   while (beatNow >= nextSpawnBeat && guard++ < 12) {
     if (bannerMgr.activeCount < cfg.maxActive) {
-      bannerMgr.spawn({ color: nextColor(), songTime, fever: feverMgr.active });
+      spawnOne(songTime);
     }
     nextSpawnBeat += cfg.spawnBeats;
   }
@@ -298,7 +395,15 @@ feverMgr.onStart = () => {
   effects.edgeFlash('ef-gold');
   audioMgr.feverStart();
   haptics.feverStart();
-  // 画面上の既存×印も金色化して爆発感を出す
+  // Brain ChallengeはFEVER中は停止（ペナルティなし）
+  brainMgr.forceEnd();
+  hideBrainPanel();
+  // 金色Trailモードへ。吸い込み先=FEVER BONUSカウンター位置をキャッシュ
+  feverLastTap = null;
+  trailMgr.setFever(true);
+  const r = els.feverBonus.getBoundingClientRect();
+  trailMgr.setAbsorbTarget(r.left + r.width / 2 || window.innerWidth / 2, r.top + r.height / 2 || 110);
+  // 画面上の既存×印も金色化して爆発感を出す（ターゲットリングも解除）
   for (const ad of bannerMgr.active) {
     if (ad.state === 'alive') {
       ad.color = 'gold';
@@ -312,6 +417,11 @@ feverMgr.onEnd = (payout, kills) => {
   els.feverLabel.textContent = 'FEVER';
   flashScreen();
   audioMgr.feverEnd();
+  // 残り星屑をBONUSカウンターへ集めて精算感を出す
+  trailMgr.feverFinale();
+  trailMgr.setFever(false);
+  feverLastTap = null;
+  lastTapByColor = {}; // FEVER前の位置は古いので接続しない
   effects.pop(window.innerWidth / 2, window.innerHeight * 0.4,
     `<b>FEVER BONUS<br>+${payout.toLocaleString()}</b><i class="j-GOLD">${kills} ADS CLOSED</i>`, 'pop-payout');
   // スコアへカウントアップ加算
@@ -366,10 +476,33 @@ function updateDebug() {
 }
 
 // ---------- メインループ ----------
+function updateBrain() {
+  const ev = brainMgr.update({
+    beat: clock.beat,
+    sectionName: clock.section.name,
+    fever: feverMgr.active,
+    songTime: clock.time,
+    rng: rnd,
+  });
+  if (ev === 'start') {
+    showBrainPanel(brainMgr.targetColor);
+    effects.streakNote(`TARGET: ${COLOR_JP[brainMgr.targetColor]}!`, `sn-${brainMgr.targetColor} sn-strong`);
+    markTargetXButtons();
+  } else if (ev === 'end') {
+    hideBrainPanel();
+    markTargetXButtons(); // リング解除
+  }
+  if (brainMgr.active) {
+    els.brainGaugeFill.style.width = `${brainMgr.remainingRatio(clock.beat) * 100}%`;
+    els.brainChain.textContent = `BRAIN ×${brainMgr.stats.brainChain}`;
+  }
+}
+
 function loop() {
   if (state === 'playing') {
     const t = clock.time;
     feverMgr.update(t);
+    updateBrain();
     spawnTick(t);
     bannerMgr.update(t);
     updateHud();
@@ -422,7 +555,10 @@ function endGame() {
   document.body.classList.remove('fever');
   payoutAnim = null;
   bannerMgr.clearAll();
+  trailMgr.clear();
+  hideBrainPanel();
 
+  // Firestoreへ送るpayloadはPhase 3.6と同一（Brain統計は含めない）
   const result = buildPlayResult({
     scoreMgr, feverMgr, seed: runSeed, startedAt, finishedAt: Date.now(), pausedMs: pausedAccumMs,
   });
@@ -430,6 +566,19 @@ function endGame() {
   console.log('[PlayResult]', JSON.stringify(result));
   const bestInfo = saveIfBest(result);
   showResult(result, bestInfo);
+
+  // Brain Trainingの結果はローカル表示のみ（スコア・ランク・ランキング・ローカルベストに影響しない）
+  const bs = brainMgr.stats;
+  if (settings.get('brain') && bs.totalChallenges > 0) {
+    els.resultBrainStats.innerHTML =
+      `<span>TARGET HIT <b>${bs.targetHits}</b></span>` +
+      `<span>MAX CHAIN <b>${bs.maxBrainChain}</b></span>` +
+      `<span>RESET <b>${bs.targetResets}</b></span>`;
+    els.resultBrain.classList.remove('hidden');
+  } else {
+    els.resultBrain.classList.add('hidden');
+  }
+
   setSubmitStatus('', '');
   els.submitBtn.disabled = false;
 }
@@ -442,6 +591,13 @@ function startGame() {
   deck.reset(rnd);
   startedAt = Date.now();
   pausedAccumMs = 0;
+  // Phase 4A リセット
+  lastTapByColor = {};
+  feverLastTap = null;
+  trailMgr.clear();
+  trailMgr.setFever(false);
+  brainMgr.resetRun();
+  hideBrainPanel();
   els.start.classList.add('hidden');
   els.hud.classList.remove('hidden');
   audioMgr.init();          // ユーザー操作内でAudioContextを初期化
@@ -510,6 +666,22 @@ els.setDebug.addEventListener('pointerdown', (e) => {
   settings.set('debug', !settings.get('debug'));
   syncSettingsUI();
   applySettings();
+});
+els.setTrail.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  settings.set('trail', !settings.get('trail'));
+  if (!settings.get('trail')) trailMgr.clear(); // OFF即時反映
+  syncSettingsUI();
+});
+els.setBrain.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  settings.set('brain', !settings.get('brain'));
+  if (!settings.get('brain')) {
+    brainMgr.forceEnd();
+    hideBrainPanel();
+    if (bannerMgr) markTargetXButtons();
+  }
+  syncSettingsUI();
 });
 
 // ---------- ランキング（Phase 3） ----------
@@ -665,6 +837,6 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
   els.loading.classList.add('hidden');
   els.start.classList.remove('hidden');
   // 開発用フック（デバッグ・動作確認用。ゲームロジックからは使わない）
-  window.__adbreaker = { audio, scoreMgr, feverMgr, settings };
+  window.__adbreaker = { audio, scoreMgr, feverMgr, settings, trailMgr, brainMgr };
   loop();
 })();

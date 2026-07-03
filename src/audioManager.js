@@ -143,4 +143,55 @@ export class AudioManager {
       this._tone({ freq: 220, freqEnd: 150, type: 'sine', dur: 0.12, vol: 0.18, filterFreq: 900 });
     });
   }
+
+  // ==== Phase 4A ====
+
+  // 同色ストリークで音階が上がるタップ音（Cメジャーペンタトニック系ベル）。
+  // streak 1〜7 で上昇、8以上は上限音+装飾音。
+  playColorStreakTap({ streak = 1, judgement = 'GREAT' } = {}) {
+    this._safe(() => {
+      const SCALE = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
+      const idx = Math.min(Math.max(streak, 1), 7) - 1;
+      const freq = SCALE[idx];
+      // ベル: 基音 + 2倍音（短く・控えめゲインで連打しても痛くない）
+      this._tone({ freq, type: 'triangle', dur: 0.12, vol: 0.22 });
+      this._tone({ freq: freq * 2, type: 'sine', dur: 0.16, vol: 0.07, delay: 0.01 });
+      if (streak >= 8) {
+        // 上限到達後は装飾音を足す（音階は上げ続けない）
+        this._tone({ freq: 1567.98, type: 'sine', dur: 0.09, vol: 0.1, delay: 0.05 });
+      }
+      if (judgement === 'PERFECT') {
+        this._tone({ freq: 2093, type: 'sine', dur: 0.08, vol: 0.08, delay: 0.03 });
+      }
+    });
+  }
+
+  // FEVER中の金色タップ音。タップ数で8段の上昇ランを繰り返す
+  playFeverGoldTap({ feverTapCount = 1 } = {}) {
+    this._safe(() => {
+      const RUN = [1046.5, 1174.66, 1318.51, 1567.98, 1760.0, 2093.0, 2349.32, 2637.02];
+      const freq = RUN[(Math.max(feverTapCount, 1) - 1) % RUN.length];
+      this._tone({ freq, type: 'square', dur: 0.06, vol: 0.11, filterFreq: 3600 });
+      this._tone({ freq: freq * 1.5, type: 'sine', dur: 0.1, vol: 0.06, delay: 0.04 });
+      if (feverTapCount > 30) {
+        this._tone({ freq: freq * 2, type: 'sine', dur: 0.07, vol: 0.05, delay: 0.06 });
+      }
+    });
+  }
+
+  // TARGET COLOR CHALLENGE 成功音（チェーンで少しずつ上がる）
+  playBrainTargetHit({ brainStreak = 1 } = {}) {
+    this._safe(() => {
+      const base = 987.77 * (1 + Math.min(brainStreak, 7) * 0.04);
+      this._tone({ freq: base, type: 'triangle', dur: 0.09, vol: 0.24 });
+      this._tone({ freq: base * 1.335, type: 'triangle', dur: 0.14, vol: 0.24, delay: 0.06 });
+    });
+  }
+
+  // Brain Chainリセット音（控えめ・不快にしない）
+  playBrainReset() {
+    this._safe(() => {
+      this._tone({ freq: 330, freqEnd: 262, type: 'sine', dur: 0.14, vol: 0.1, filterFreq: 800 });
+    });
+  }
 }

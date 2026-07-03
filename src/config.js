@@ -116,6 +116,27 @@ export const CONFIG = {
     },
   },
 
+  // 流れ星エフェクト（Phase 4A）。Canvas粒子数の上限
+  trail: {
+    maxParticlesNormal: 300,
+    maxParticlesFever: 600,
+    maxParticlesReduced: 250,
+  },
+
+  // TARGET COLOR CHALLENGE（Phase 4A）。
+  // ランキングスコア・FEVERゲージには影響させない（affectsScore: false を変えないこと）
+  brainChallenge: {
+    enabled: true,
+    affectsScore: false,
+    startAfterSeconds: 20,
+    durationBeats: 16,
+    cooldownBeats: 24,
+    allowedSections: ['VERSE1', 'PRE-CHORUS', 'CHORUS1', 'POST-DROP BUILD', 'CHORUS2', 'BREAKDOWN'],
+    disabledDuringFever: true,
+    targetHitLabel: 'TARGET HIT!',
+    resetLabel: 'BRAIN RESET',
+  },
+
   // ランク閾値（仮。調整しやすいようここに集約）
   ranks: [
     { name: 'S', min: 1500000 },

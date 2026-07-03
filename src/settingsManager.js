@@ -7,6 +7,8 @@ const DEFAULTS = {
   haptics: true,
   effects: 'NORMAL', // NORMAL | REDUCED
   debug: true,
+  trail: true,       // 流れ星エフェクト（Phase 4A）
+  brain: true,       // TARGET COLOR CHALLENGE（Phase 4A）
 };
 
 export class SettingsManager {
