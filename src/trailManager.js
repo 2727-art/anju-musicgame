@@ -77,48 +77,137 @@ export class TrailManager {
     this._dirty = false;
   }
 
-  // ---- 星座システム（同色タップの軌跡が星座になる） ----
+  // ---- 星座システム（タップの軌跡が星座になる） ----
+  // どの色のタップでも星になる（星ごとに自分の色を保持）。
+  // 同色だけで作ると純色星座、混色だとセグメントごとにグラデーションする虹色星座になる。
 
-  // 同色タップごとに星を追加。色が変わったら旧星座をフェードさせて新規開始。
-  // 戻り値: 現在描いている星座の星の数
-  constelTap({ x, y, color, streak }) {
+  // タップごとに星を追加。戻り値: 現在描いている星座の星の数
+  constelTap({ x, y, color }) {
     if (!this.enabled || color === 'gold') return 0;
     let cur = this.constels[this.constels.length - 1];
-    const needNew = !cur || cur.mode !== 'building' || cur.color !== color || streak <= 1;
-    if (needNew) {
-      if (cur && cur.mode === 'building') cur.mode = 'fade';
-      cur = { color, pts: [], mode: 'building', t: 0, born: performance.now() };
+    if (!cur || cur.mode !== 'building') {
+      cur = { pts: [], mode: 'building', t: 0 };
       this.constels.push(cur);
       if (this.constels.length > 3) this.constels.shift(); // 上限
     }
-    cur.pts.push({ x, y });
+    cur.pts.push({ x, y, color });
     return cur.pts.length;
   }
 
-  // 描画中の星座の座標列（星座マッチング用）
+  // 描画中の星座の座標列（星座マッチング・運勢判定用）
   constelPoints() {
     const cur = this.constels[this.constels.length - 1];
     return cur && cur.mode === 'building' ? cur.pts.slice() : [];
   }
 
-  // 星座完成 → 輝きフラッシュ後にフェード。各星から星屑を放つ
-  constelComplete() {
+  // 星座完成 → プレイヤーの線が輝き、マッチした星座の「本来の形」（ghost）が重なって
+  // 浮かび上がり、縮みながらコレクション（target）へ飛んで消える。
+  // ghost: [[x,y],...] / target: {x,y}（省略時は左下）
+  constelComplete({ ghost = [], target = null } = {}) {
     const cur = this.constels[this.constels.length - 1];
     if (!cur || cur.mode !== 'building') return;
     cur.mode = 'complete';
     cur.t = 0;
-    const rgb = this._rgb(cur.color);
+    cur.ghost = ghost;
+    cur.ghostTarget = target || { x: 30, y: this.h - 40 };
+    // ゴーストの重心（縮小・移動の基準点）
+    let gx = 0, gy = 0;
+    const src = ghost.length ? ghost : cur.pts.map((p) => [p.x, p.y]);
+    for (const [x, y] of src) { gx += x; gy += y; }
+    cur.ghostCx = gx / src.length;
+    cur.ghostCy = gy / src.length;
     for (const p of cur.pts) {
+      const rgb = this._rgb(p.color);
       for (let i = 0; i < (this.reduced ? 2 : 4); i++) this._dust(p.x, p.y, rgb, { speed: 80, life: 600 });
     }
     const last = cur.pts[cur.pts.length - 1];
-    this.starburst(last.x, last.y, cur.color, 8);
+    this.starburst(last.x, last.y, last.color, 8);
   }
 
-  // ストリークが切れた（Miss・FEVER突入など）→ 静かにフェード
+  // FEVER突入などで描きかけを静かにフェード
   constelBreak() {
     const cur = this.constels[this.constels.length - 1];
     if (cur && cur.mode === 'building') cur.mode = 'fade';
+  }
+
+  // プレイヤーの星座線（色グラデーションのセグメント＋星ノード）を描く
+  _drawPlayerConstel(ctx, c, alpha, width, now, whiteFlash) {
+    const pts = c.pts;
+    if (alpha <= 0) return;
+    ctx.lineJoin = 'round';
+    // セグメントごとに両端ノードの色をつなぐグラデーション輝線
+    for (let j = 1; j < pts.length; j++) {
+      const a = pts[j - 1], b = pts[j];
+      const rgbA = this._rgb(a.color), rgbB = this._rgb(b.color);
+      let stroke;
+      if (whiteFlash) {
+        stroke = 'rgba(255,255,255,0.95)';
+      } else if (rgbA === rgbB) {
+        stroke = `rgb(${rgbA})`;
+      } else {
+        const g = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+        g.addColorStop(0, `rgb(${rgbA})`);
+        g.addColorStop(1, `rgb(${rgbB})`);
+        stroke = g;
+      }
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.globalAlpha = alpha * 0.28;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width * 3.2;
+      ctx.stroke();
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+    // 星ノード（十字のきらめき・各星ごとに位相をずらして瞬く・色は自分の色）
+    for (let j = 0; j < pts.length; j++) {
+      const p = pts[j];
+      const tw = 0.7 + 0.3 * Math.sin(now * 0.005 + j * 1.7);
+      const r = (whiteFlash ? 7 : 5) * tw;
+      ctx.globalAlpha = alpha * tw;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(p.x - r, p.y); ctx.lineTo(p.x + r, p.y);
+      ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x, p.y + r);
+      ctx.stroke();
+      ctx.fillStyle = `rgb(${this._rgb(p.color)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // マッチした星座の「本来の形」（淡青白のゴースト）を描く。
+  // shift/scale で縮小しながらコレクションへ飛ぶ演出に使う
+  _drawGhost(ctx, c, alpha, shiftX, shiftY, scale) {
+    if (!c.ghost || c.ghost.length < 2 || alpha <= 0) return;
+    const tx = (x) => shiftX + c.ghostCx + (x - c.ghostCx) * scale;
+    const ty = (y) => shiftY + c.ghostCy + (y - c.ghostCy) * scale;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx(c.ghost[0][0]), ty(c.ghost[0][1]));
+    for (let j = 1; j < c.ghost.length; j++) ctx.lineTo(tx(c.ghost[j][0]), ty(c.ghost[j][1]));
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.strokeStyle = 'rgb(190,220,255)';
+    ctx.lineWidth = 7 * scale;
+    ctx.stroke();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(235,245,255,0.95)';
+    ctx.lineWidth = Math.max(1, 2.2 * scale);
+    ctx.stroke();
+    // ゴーストの星ノード
+    for (const [x, y] of c.ghost) {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#eaf4ff';
+      ctx.beginPath();
+      ctx.arc(tx(x), ty(y), Math.max(1.2, 3.4 * scale), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // 星座の更新と描画（particlesより先に呼び、線が下・粒が上になるようにする）
@@ -126,56 +215,36 @@ export class TrailManager {
     const cs = this.constels;
     for (let i = cs.length - 1; i >= 0; i--) {
       const c = cs[i];
-      let alpha = 0.85;
-      let width = 2;
-      if (c.mode === 'complete') {
-        c.t += dt;
-        // 1.4秒の輝きフラッシュ → フェードへ
-        const k = c.t / 1400;
-        if (k >= 1) { c.mode = 'fade'; c.t = 0; continue; }
-        alpha = 1;
-        width = 3.5 + Math.sin(k * Math.PI) * 2;
+      if (c.mode === 'building') {
+        this._drawPlayerConstel(ctx, c, 0.85, 2, now, false);
       } else if (c.mode === 'fade') {
         c.t += dt;
         const k = c.t / 600;
         if (k >= 1) { cs.splice(i, 1); continue; }
-        alpha = 0.85 * (1 - k);
+        this._drawPlayerConstel(ctx, c, 0.85 * (1 - k), 2, now, false);
+      } else if (c.mode === 'complete') {
+        c.t += dt;
+        const T = c.t;
+        // フェーズA(0-700ms): プレイヤー線が白熱フラッシュ＋ゴーストが浮かび上がる
+        // フェーズB(700-1500ms): プレイヤー線がゴーストへ「昇華」してフェード
+        // フェーズC(1500-2400ms): ゴーストが縮みながらコレクションへ飛んで消える
+        if (T >= 2400) { cs.splice(i, 1); continue; }
+        if (T < 700) {
+          const k = T / 700;
+          this._drawPlayerConstel(ctx, c, 1, 3.5 + Math.sin(k * Math.PI) * 2, now, true);
+          this._drawGhost(ctx, c, 0.55 * k, 0, 0, 1);
+        } else if (T < 1500) {
+          const k = (T - 700) / 800;
+          this._drawPlayerConstel(ctx, c, 1 - k, 3, now, false);
+          this._drawGhost(ctx, c, 0.55, 0, 0, 1);
+        } else {
+          const k = (T - 1500) / 900;
+          const e = k * k; // 加速しながら飛ぶ
+          const shiftX = (c.ghostTarget.x - c.ghostCx) * e;
+          const shiftY = (c.ghostTarget.y - c.ghostCy) * e;
+          this._drawGhost(ctx, c, 0.55 * (1 - k), shiftX, shiftY, 1 - 0.85 * e);
+        }
       }
-      const rgb = this._rgb(c.color);
-      const pts = c.pts;
-      // 輝線（太い淡い光 + 細い芯）
-      if (pts.length >= 2) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
-        ctx.globalAlpha = alpha * 0.28;
-        ctx.strokeStyle = `rgb(${rgb})`;
-        ctx.lineWidth = width * 3.2;
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = c.mode === 'complete' ? 'rgba(255,255,255,0.95)' : `rgb(${rgb})`;
-        ctx.lineWidth = width;
-        ctx.stroke();
-      }
-      // 星ノード（十字のきらめき・各星ごとに位相をずらして瞬く）
-      for (let j = 0; j < pts.length; j++) {
-        const p = pts[j];
-        const tw = 0.7 + 0.3 * Math.sin(now * 0.005 + j * 1.7);
-        const r = (c.mode === 'complete' ? 7 : 5) * tw;
-        ctx.globalAlpha = alpha * tw;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(p.x - r, p.y); ctx.lineTo(p.x + r, p.y);
-        ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x, p.y + r);
-        ctx.stroke();
-        ctx.fillStyle = `rgb(${rgb})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
     }
   }
 

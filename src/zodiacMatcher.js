@@ -1,9 +1,10 @@
 // 12星座マッチャー（演出専用・スコアには影響しない）。
-// プレイヤーが同色タップで描いた折れ線を正規化し、
+// プレイヤーがタップで描いた折れ線を正規化し、
 // 12星座の簡略アステリズム形状と比較して最も近い星座を返す。
-// 重心・スケール・回転(8方位)・鏡像・描き順の逆転を吸収した最小二乗距離で判定する。
+// 重心・スケール・回転(8方位)・鏡像・描き順の逆転を吸収した最小二乗距離で判定し、
+// マッチした星座の「本来の形」をプレイヤーの描画位置に合わせた座標（ghost）も返す。
 
-// 各星座の簡略形状（主要な星の並びを5〜7点の折れ線にしたもの・正規化前）
+// 各星座の簡略形状（主要な星の並びを4〜7点の折れ線にしたもの・正規化前）
 const ZODIAC_DEFS = [
   ['おひつじ座', '♈', [[-1, 0.2], [-0.1, -0.3], [0.7, -0.2], [1, 0.3], [0.8, 0.6]]],
   ['おうし座', '♉', [[-1, -0.8], [-0.4, 0], [0, 0.35], [0.4, 0], [1, -0.8]]],
@@ -51,15 +52,19 @@ function resample(pts, k = K) {
   return out;
 }
 
-// 重心を原点へ・RMS距離でスケール正規化
-function normalize(pts) {
+// 重心とRMSスケールを求める
+function normParams(pts) {
   let cx = 0, cy = 0;
   for (const [x, y] of pts) { cx += x; cy += y; }
   cx /= pts.length; cy /= pts.length;
   let rms = 0;
   for (const [x, y] of pts) rms += (x - cx) ** 2 + (y - cy) ** 2;
   rms = Math.sqrt(rms / pts.length) || 1;
-  return pts.map(([x, y]) => [(x - cx) / rms, (y - cy) / rms]);
+  return { cx, cy, s: rms };
+}
+
+function applyNorm(pts, { cx, cy, s }) {
+  return pts.map(([x, y]) => [(x - cx) / s, (y - cy) / s]);
 }
 
 function meanSqDist(a, b) {
@@ -68,36 +73,51 @@ function meanSqDist(a, b) {
   return s / a.length;
 }
 
-// 星座テンプレートは起動時に前処理
-const ZODIACS = ZODIAC_DEFS.map(([name, symbol, pts]) => ({
-  name, symbol,
-  norm: normalize(resample(pts)),
-}));
+// 星座テンプレートは起動時に前処理。
+// norm: 比較用（リサンプル+正規化） / shape: ゴースト表示用（元の星点を同じ正規化で）
+const ZODIACS = ZODIAC_DEFS.map(([name, symbol, pts]) => {
+  const rs = resample(pts);
+  const p = normParams(rs);
+  return { name, symbol, norm: applyNorm(rs, p), shape: applyNorm(pts, p) };
+});
 
-// タップ座標列 → 最も形が近い星座を返す
+// タップ座標列（{x,y}の配列）→ 最も形が近い星座と、
+// プレイヤーの描画に位置合わせした「本来の形」(ghost: [[x,y],...]) を返す
 export function matchZodiac(rawPts) {
-  if (!rawPts || rawPts.length < 2) return ZODIACS[0];
-  const base = normalize(resample(rawPts.map((p) => [p.x, p.y])));
-  // 回転8方位 × 鏡像 × 描き順逆転 のバリアントを作って最小距離を探す
-  const variants = [];
+  if (!rawPts || rawPts.length < 2) {
+    const z = ZODIACS[0];
+    return { name: z.name, symbol: z.symbol, ghost: [] };
+  }
+  const rs = resample(rawPts.map((p) => [p.x, p.y]));
+  const P = normParams(rs);
+  const base = applyNorm(rs, P);
+
+  // 回転8方位 × 鏡像 × 描き順逆転 のバリアントで最小距離を探す
+  let best = { z: ZODIACS[0], m: 1, a: 0, d: Infinity };
   for (const dir of [base, base.slice().reverse()]) {
     for (const m of [1, -1]) {
       for (let r = 0; r < 8; r++) {
         const a = (r * Math.PI) / 4;
         const cos = Math.cos(a), sin = Math.sin(a);
-        variants.push(dir.map(([x, y]) => {
+        const variant = dir.map(([x, y]) => {
           const xx = x * m;
           return [xx * cos - y * sin, xx * sin + y * cos];
-        }));
+        });
+        for (const z of ZODIACS) {
+          const d = meanSqDist(variant, z.norm);
+          if (d < best.d) best = { z, m, a, d };
+        }
       }
     }
   }
-  let best = ZODIACS[0], bd = Infinity;
-  for (const z of ZODIACS) {
-    for (const v of variants) {
-      const d = meanSqDist(v, z.norm);
-      if (d < bd) { bd = d; best = z; }
-    }
-  }
-  return best;
+
+  // ゴースト座標: テンプレ形状に最良変換の逆（回転-a→鏡像→非正規化）を適用して
+  // プレイヤーが描いた位置・大きさ・向きに重ねる
+  const ca = Math.cos(-best.a), sa = Math.sin(-best.a);
+  const ghost = best.z.shape.map(([x, y]) => {
+    const rx = x * ca - y * sa;
+    const ry = x * sa + y * ca;
+    return [P.cx + P.s * (rx * best.m), P.cy + P.s * ry];
+  });
+  return { name: best.z.name, symbol: best.z.symbol, ghost };
 }

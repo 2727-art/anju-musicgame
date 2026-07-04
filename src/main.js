@@ -18,6 +18,7 @@ import { loadPlayerName, savePlayerName } from './playerNameManager.js';
 import { TrailManager } from './trailManager.js';
 import { BrainChallengeManager } from './brainChallengeManager.js';
 import { matchZodiac } from './zodiacMatcher.js';
+import { tellFortune } from './fortuneTeller.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -47,6 +48,7 @@ const els = {
   brainChain: $('brain-chain'),
   resultBrain: $('result-brain'), resultBrainStats: $('result-brain-stats'),
   stage: $('stage'),
+  fortuneNote: $('fortune-note'), zodiacCollection: $('zodiac-collection'),
   // 商業風FEVER HUD
   scoreDelta: $('score-delta'),
   fcNum: $('fc-num'), fcJudge: $('fc-judge'),
@@ -105,6 +107,34 @@ let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y
 let feverLastTap = null;   // FEVER中: 前回タップ位置
 let reachNotified = false; // ゲージ90%の「REACH」演出を1チャージ1回にする
 let constellationCount = 0; // 完成した星座の数（ローカル表示のみ）
+const collectedZodiacs = new Map(); // symbol → chip要素（このランで完成した星座のコレクション）
+
+// コレクションに星座チップを追加（既にあればバウンスだけ）
+function addZodiacChip(zodiac) {
+  let chip = collectedZodiacs.get(zodiac.symbol);
+  if (!chip) {
+    chip = document.createElement('span');
+    chip.className = 'zc-chip';
+    chip.textContent = zodiac.symbol;
+    chip.title = zodiac.name;
+    els.zodiacCollection.appendChild(chip);
+    collectedZodiacs.set(zodiac.symbol, chip);
+  }
+  retrigger(chip, 'pop');
+}
+
+function resetZodiacCollection() {
+  collectedZodiacs.clear();
+  els.zodiacCollection.textContent = '';
+}
+
+// ゴーストの飛び先＝コレクションの次のチップ位置（ステージ座標）
+function zodiacChipTarget() {
+  return {
+    x: 20 + collectedZodiacs.size * 28,
+    y: els.stage.clientHeight - 38,
+  };
+}
 
 // ---------- 設定の反映 ----------
 function applySettings() {
@@ -352,15 +382,23 @@ function handleTap(ad) {
     }
     lastTapByColor[ad.color] = { x: tapX, y: tapY };
 
-    // 星座: タップ位置が星になり輝線でつながる。規定数で12星座判定して完成
-    const starCount = trailMgr.constelTap({ x: tapX, y: tapY, color: ad.color, streak: res.streakCount });
+    // 星座: どの色のタップも星になり輝線でつながる（広告を消した副産物・スコアには無関係）。
+    // 規定数で12星座判定 → 本来の形のゴーストが重なり、コレクションへ飛んでいく
+    const starCount = trailMgr.constelTap({ x: tapX, y: tapY, color: ad.color });
     if (starCount >= CONFIG.constellation.starsToComplete) {
-      const zodiac = matchZodiac(trailMgr.constelPoints());
-      trailMgr.constelComplete();
+      const pts = trailMgr.constelPoints();
+      const zodiac = matchZodiac(pts);
+      trailMgr.constelComplete({ ghost: zodiac.ghost, target: zodiacChipTarget() });
       constellationCount++;
       effects.milestone(`${zodiac.symbol} ${zodiac.name} COMPLETE!!`, 'ms-zodiac');
+      // 今日の運勢風コメント（ラッキーカラー＝実際に描いた星の最頻色）
+      const fortune = tellFortune(rnd, pts.map((p) => p.color));
+      els.fortuneNote.textContent = `✧ ${fortune.text} ✧`;
+      retrigger(els.fortuneNote, 'show');
       audioMgr.constellationComplete();
       haptics.comboMilestone();
+      // ゴーストが飛び終わったタイミングでコレクションに点灯
+      setTimeout(() => addZodiacChip(zodiac), 2400);
     }
 
     // 同色2連続以上は音階上昇タップ音、初回（streak 1）は既存の判定SE
@@ -387,9 +425,8 @@ function judgeLabel(name) {
 function handleMiss(ad) {
   scoreMgr.onMiss();
   effects.pop(ad.xPos.x, ad.xPos.y - 20, `<i class="j-MISS">MISS</i>`, 'pop-miss');
-  // 「閉じ損ねた」感を足す小さなノイズ粒子（Trailは出さない）
+  // 「閉じ損ねた」感を足す小さなノイズ粒子（星座は壊さない＝消せなかった広告が星にならないだけ）
   trailMgr.spawnTapSpark({ x: ad.xPos.x, y: ad.xPos.y, color: 'miss', intensity: 0.6 });
-  trailMgr.constelBreak(); // 描きかけの星座は静かにフェード
   audioMgr.miss();
   haptics.miss();
 }
@@ -615,7 +652,7 @@ function showResult(result, bestInfo) {
     ['FEVER BONUS合計', result.fever.totalBonus.toLocaleString()],
     ['最大同色STREAK', result.sameColor.maxStreak],
     // ローカル表示のみ（ランキングpayloadには含めない）
-    ['星座コンプリート', constellationCount],
+    ['星座コンプリート', `${constellationCount}${collectedZodiacs.size ? ' ' + [...collectedZodiacs.keys()].join('') : ''}`],
   ];
   els.resultStats.innerHTML = rows
     .map(([k, v]) => `<div class="stat-k">${k}</div><div class="stat-v">${v}</div>`)
@@ -679,6 +716,7 @@ function startGame() {
   feverLastTap = null;
   reachNotified = false;
   constellationCount = 0;
+  resetZodiacCollection();
   $('fever-gauge').classList.remove('reach');
   trailMgr.clear();
   trailMgr.setFever(false);

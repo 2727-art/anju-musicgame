@@ -681,6 +681,70 @@ body.fever #debug { bottom: 42px; }
   color: #eaf4ff;
   text-shadow: 0 0 12px #9fd0ff, 0 0 30px var(--purple), 0 0 50px #fff;
 }
+
+/* 星座完成時の運勢コメント（占い広告パロディ風） */
+#fortune-note {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 450;
+  pointer-events: none;
+  opacity: 0;
+  max-width: 88%;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(24, 8, 40, 0.82);
+  border: 1px solid rgba(159, 208, 255, 0.6);
+  box-shadow: 0 0 14px rgba(159, 208, 255, 0.45), inset 0 0 12px rgba(123, 45, 255, 0.35);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  color: #eaf4ff;
+  text-shadow: 0 0 8px rgba(159, 208, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#fortune-note.show { animation: fortune-pop 3s ease-out both; }
+@keyframes fortune-pop {
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.85); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  16%  { transform: translate(-50%, -50%) scale(1); }
+  82%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -70%); }
+}
+
+/* 完成星座コレクション（左下・デバッグ表示の上） */
+#zodiac-collection {
+  position: absolute;
+  left: 6px;
+  bottom: 26px;
+  z-index: 160;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+body.fever #zodiac-collection { display: none; }
+.zc-chip {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: #eaf4ff;
+  background: rgba(24, 8, 40, 0.8);
+  border: 1px solid rgba(159, 208, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(159, 208, 255, 0.5);
+  text-shadow: 0 0 6px #9fd0ff;
+}
+.zc-chip.pop { animation: zc-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes zc-pop {
+  0%   { transform: scale(0.2); opacity: 0; }
+  60%  { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); }
+}
 @keyframes milestone-pop {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
   18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
