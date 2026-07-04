@@ -34,12 +34,25 @@
   <div id="milestone" class="milestone"></div>
   <div id="streak-note" class="streak-note"></div>
 
+  <!-- FEVER演出HUD（HUD本体とは別レイヤー・×印より下に描画） -->
+  <div id="fever-banner">✦ FEVER TIME!! ✦</div>
+  <div id="fever-combo">
+    <div id="fc-num">0</div>
+    <div class="fc-label">COMBO</div>
+    <div id="fc-judge"></div>
+  </div>
+  <div id="fever-bottom-bar">
+    <span id="fbb-kills">FEVER BONUS × 0</span>
+    <span id="fbb-total">0</span>
+  </div>
+
   <!-- HUD -->
   <header id="hud" class="hidden">
     <div class="hud-row">
       <div class="hud-block">
         <div class="hud-label">SCORE</div>
         <div id="score" class="hud-value">0</div>
+        <div id="score-delta" class="score-delta"></div>
       </div>
       <div class="hud-block" id="combo-wrap">
         <div class="hud-label">COMBO</div>
@@ -58,8 +71,14 @@
       <div id="streak" style="visibility:hidden">STREAK</div>
       <div id="section-name">-</div>
     </div>
-    <div id="fever-bonus" style="visibility:hidden">FEVER BONUS +0</div>
   </header>
+
+  <!-- FEVER BONUS 飾りパネル（stage直下・×印より下） -->
+  <div id="fever-bonus" style="visibility:hidden">
+    <span class="fb-label">FEVER BONUS</span>
+    <span id="fever-bonus-value">0</span>
+    <span id="fever-bonus-delta"></span>
+  </div>
 
   <!-- FEVER終了などの発光 -->
   <div id="flash"></div>

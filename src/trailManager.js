@@ -187,6 +187,9 @@ export class TrailManager {
     if (tier >= 2) {
       this._comet(fromX, fromY, toX, toY, COLOR_RGB.gold, { size: 2.2, dustRate: 0.35, arriveBurst: 0, curve: -0.25 });
     }
+    // タップ点から金色シャード飛散＋放射光線（花火感）
+    this.spawnShards({ x: toX, y: toY, count: 3 + tier, spread: 200 });
+    this.spawnRays({ x: toX, y: toY, count: 4 + tier });
     // 星屑がBONUSカウンターへ吸い込まれる（tierが上がるほど多く）
     this.spawnBonusAbsorb({ x: toX, y: toY, count: 2 + tier * 2 });
   }
@@ -207,6 +210,57 @@ export class TrailManager {
       arriveBurst: 0,
       curve: 0.05,
     });
+  }
+
+  // 金色の紙吹雪シャード（回転する多角形片）。fall=trueで上から降らせる
+  spawnShards({ x, y, count = 6, spread = 160, fall = false }) {
+    if (!this.enabled) return;
+    const n = this.reduced ? Math.ceil(count / 2) : count;
+    for (let i = 0; i < n; i++) {
+      let vx, vy;
+      if (fall) {
+        vx = (Math.random() - 0.5) * 60;
+        vy = 60 + Math.random() * 120;
+      } else {
+        const ang = Math.random() * Math.PI * 2;
+        const v = spread * (0.3 + Math.random() * 0.9);
+        vx = Math.cos(ang) * v;
+        vy = Math.sin(ang) * v - 40;
+      }
+      this._add({
+        type: 'shard', x, y, vx, vy,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 9,
+        size: 4 + Math.random() * 7,
+        life: 1100 + Math.random() * 700,
+        age: 0,
+        tone: Math.random() < 0.5 ? 0 : 1, // 明/暗ゴールド
+      });
+    }
+  }
+
+  // タップ位置からの放射光線（REDUCEDでは省略）
+  spawnRays({ x, y, count = 5 }) {
+    if (!this.enabled || this.reduced) return;
+    for (let i = 0; i < count; i++) {
+      this._add({
+        type: 'ray', x, y,
+        ang: Math.random() * Math.PI * 2,
+        len: 60 + Math.random() * 90,
+        width: 3 + Math.random() * 4,
+        life: 260, age: 0,
+      });
+    }
+  }
+
+  // FEVER突入時の全画面メガバースト
+  feverKickoff() {
+    if (!this.enabled) return;
+    const cx = this.w / 2;
+    const cy = this.h * 0.35;
+    this.starburst(cx, cy, 'gold', 14);
+    this.spawnShards({ x: cx, y: cy, count: 26, spread: 380 });
+    this.spawnRays({ x: cx, y: cy, count: 9 });
   }
 
   // BONUSカウンター方向へ吸い込まれる星屑
@@ -244,13 +298,15 @@ export class TrailManager {
   _tick(now) {
     const dt = Math.min(50, now - this._last);
     this._last = now;
-    // FEVER中はタップと無関係に金色流星群を流し続ける（REDUCEDは半分の頻度）
+    // FEVER中はタップと無関係に金色流星群＋紙吹雪シャードを流し続ける（REDUCEDは半分の頻度）
     if (this.fever && this.enabled) {
       this._meteorTimer = (this._meteorTimer || 0) + dt;
       const interval = this.reduced ? 520 : 260;
       if (this._meteorTimer >= interval) {
         this._meteorTimer = 0;
         this._ambientMeteor();
+        // 上端から金色シャードを降らせる
+        this.spawnShards({ x: Math.random() * this.w, y: -16, count: this.reduced ? 1 : 2, fall: true });
       }
     }
     const ps = this.particles;
@@ -314,6 +370,61 @@ export class TrailManager {
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      } else if (p.type === 'shard') {
+        p.age += dt;
+        const k = 1 - p.age / p.life;
+        if (k <= 0 || p.y > this.h + 30) { dead = true; }
+        else {
+          p.vy += 260 * dt / 1000; // 重力
+          p.x += p.vx * dt / 1000;
+          p.y += p.vy * dt / 1000;
+          p.rot += p.vr * dt / 1000;
+          // 回転するひし形（明暗2トーンのゴールド片）
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = Math.min(1, k * 1.6);
+          const s = p.size;
+          ctx.fillStyle = p.tone === 0 ? '#ffe685' : '#e0a800';
+          ctx.beginPath();
+          ctx.moveTo(0, -s);
+          ctx.lineTo(s * 0.62, 0);
+          ctx.lineTo(0, s);
+          ctx.lineTo(-s * 0.62, 0);
+          ctx.closePath();
+          ctx.fill();
+          // ハイライト（半面を明るく）
+          ctx.fillStyle = 'rgba(255,255,255,0.45)';
+          ctx.beginPath();
+          ctx.moveTo(0, -s);
+          ctx.lineTo(s * 0.62, 0);
+          ctx.lineTo(0, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+      } else if (p.type === 'ray') {
+        p.age += dt;
+        const k = 1 - p.age / p.life;
+        if (k <= 0) { dead = true; }
+        else {
+          // タップ点から伸びる細い三角形の光線
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.ang);
+          ctx.globalAlpha = k * 0.65;
+          ctx.fillStyle = 'rgb(255,225,130)';
+          const grow = 0.4 + 0.6 * Math.min(1, p.age / 80); // 一瞬で伸びる
+          ctx.beginPath();
+          ctx.moveTo(0, -p.width / 2);
+          ctx.lineTo(0, p.width / 2);
+          ctx.lineTo(p.len * grow, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
           ctx.globalAlpha = 1;
         }
       } else if (p.type === 'absorb') {

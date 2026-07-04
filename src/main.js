@@ -46,6 +46,11 @@ const els = {
   brainChain: $('brain-chain'),
   resultBrain: $('result-brain'), resultBrainStats: $('result-brain-stats'),
   stage: $('stage'),
+  // 商業風FEVER HUD
+  scoreDelta: $('score-delta'),
+  fcNum: $('fc-num'), fcJudge: $('fc-judge'),
+  feverBonusValue: $('fever-bonus-value'), feverBonusDelta: $('fever-bonus-delta'),
+  fbbKills: $('fbb-kills'), fbbTotal: $('fbb-total'),
   // ランキング（Phase 3）
   submitStatus: $('submit-status'), submitBtn: $('submit-btn'),
   rankingBtnResult: $('ranking-btn-result'), rankingBtnStart: $('ranking-btn-start'),
@@ -196,6 +201,24 @@ function flashScreen() {
   els.flash.classList.add('on');
 }
 
+// CSSアニメーションの再トリガ（class付け直し）
+function retrigger(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+// スコア増分表示（短時間の連続加算はまとめて「+N」表示）
+let scoreDeltaAccum = 0;
+let scoreDeltaTimer = 0;
+function showScoreDelta(points) {
+  scoreDeltaAccum += points;
+  els.scoreDelta.textContent = `+${scoreDeltaAccum.toLocaleString()}`;
+  retrigger(els.scoreDelta, 'bump');
+  clearTimeout(scoreDeltaTimer);
+  scoreDeltaTimer = setTimeout(() => { scoreDeltaAccum = 0; }, 900);
+}
+
 // ---------- コンボ・ストリーク節目 ----------
 function isComboMilestone(combo) {
   const m = CONFIG.comboMilestones;
@@ -263,6 +286,12 @@ function handleTap(ad) {
 
   if (fever) {
     const b = feverMgr.addBonus(scoreMgr.combo, res.judge.name);
+    // 商業風HUD更新: 巨大コンボ＋虹判定＋BONUS増分
+    els.fcNum.textContent = scoreMgr.combo;
+    retrigger(els.fcNum, 'bump');
+    els.fcJudge.textContent = judgeLabel(res.judge.name);
+    els.feverBonusDelta.textContent = `+${b.toLocaleString()}`;
+    retrigger(els.feverBonusDelta, 'bump');
     effects.pop(tapX, tapY - 30,
       `<b>FEVER +${b.toLocaleString()}</b><i class="j-GOLD">GOLD!!</i>`, 'pop-gold');
     effects.burst(tapX, tapY, 'gold', true);
@@ -282,6 +311,7 @@ function handleTap(ad) {
   } else {
     lastTappedColor = ad.color;
     scoreMgr.addScore(res.points);
+    showScoreDelta(res.points);
     feverMgr.addGauge(res.judge.name, res.streakMult, t);
     checkReach();
 
@@ -410,10 +440,14 @@ function spawnTick(songTime) {
 // ---------- FEVER ----------
 feverMgr.onStart = () => {
   document.body.classList.add('fever');
-  els.feverLabel.textContent = 'FEVER TIME!!';
+  els.feverLabel.textContent = ''; // ゲージ内文字は消す（上部の装飾バナーが出る）
+  els.fcNum.textContent = scoreMgr.combo;
+  els.fcJudge.textContent = '';
+  els.feverBonusDelta.textContent = '';
   flashScreen();
   effects.milestone('FEVER TIME!!', 'ms-fever');
   effects.edgeFlash('ef-gold');
+  trailMgr.feverKickoff(); // 金色シャード＋光線のメガバースト
   audioMgr.feverStart();
   haptics.feverStart();
   // REACH表示を解除して次チャージに備える
@@ -454,6 +488,7 @@ feverMgr.onEnd = (payout, kills) => {
     `<b>FEVER BONUS<br>+${payout.toLocaleString()}</b><i class="j-GOLD">${kills} ADS CLOSED</i>`, 'pop-payout');
   // スコアへカウントアップ加算
   scoreMgr.addScore(payout);
+  showScoreDelta(payout);
   payoutAnim = { from: displayScore, to: scoreMgr.score, start: performance.now(), dur: 1000 };
 };
 
@@ -483,8 +518,11 @@ function updateHud() {
   if (feverMgr.active) {
     const remain = feverMgr.remainingSec(clock.time);
     els.feverFill.style.width = `${(remain / CONFIG.fever.durationSec) * 100}%`;
-    els.feverBonus.textContent = `FEVER BONUS +${feverMgr.bonus.toLocaleString()}`;
+    els.feverBonusValue.textContent = feverMgr.bonus.toLocaleString();
     els.feverBonus.style.visibility = 'visible';
+    // 下部ゴールドバー
+    els.fbbKills.textContent = `FEVER BONUS × ${feverMgr.kills}`;
+    els.fbbTotal.textContent = feverMgr.bonus.toLocaleString();
   } else {
     els.feverFill.style.width = `${feverMgr.ratio * 100}%`;
     els.feverBonus.style.visibility = 'hidden';
