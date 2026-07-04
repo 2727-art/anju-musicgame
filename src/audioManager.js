@@ -216,6 +216,16 @@ export class AudioManager {
     });
   }
 
+  // 星座完成の天球チャイム（ハープ風アルペジオ＋淡いパッド）
+  constellationComplete() {
+    this._safe(() => {
+      const seq = [1046.5, 1318.51, 1567.98, 2093.0, 2637.02];
+      seq.forEach((f, i) => this._tone({ freq: f, type: 'sine', dur: 0.32, vol: 0.16, delay: i * 0.07 }));
+      this._tone({ freq: 523.25, type: 'triangle', dur: 0.7, vol: 0.1, delay: 0.05 });
+      this._tone({ freq: 3135.96, type: 'sine', dur: 0.4, vol: 0.08, delay: 0.42 }); // 最後のきらめき
+    });
+  }
+
   // Brain Chainリセット音（控えめ・不快にしない）
   playBrainReset() {
     this._safe(() => {

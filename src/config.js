@@ -116,6 +116,11 @@ export const CONFIG = {
     },
   },
 
+  // 星座演出: 同色タップの軌跡が輝線でつながり、この数で12星座判定して完成
+  constellation: {
+    starsToComplete: 6,
+  },
+
   // 流れ星エフェクト（Phase 4A）。Canvas粒子数の上限
   trail: {
     maxParticlesNormal: 300,

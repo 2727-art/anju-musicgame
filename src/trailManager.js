@@ -20,6 +20,7 @@ export class TrailManager {
     this.ctx = canvas.getContext('2d');
     this.settings = settings;
     this.particles = [];
+    this.constels = []; // 星座（同色タップで描く輝線）。末尾が描画中のもの
     this.fever = false;
     this.w = 0; // ステージサイズ（resizeで更新）
     this.h = 0;
@@ -71,8 +72,111 @@ export class TrailManager {
 
   clear() {
     this.particles.length = 0;
+    this.constels.length = 0;
     this.ctx.clearRect(0, 0, this.w, this.h);
     this._dirty = false;
+  }
+
+  // ---- 星座システム（同色タップの軌跡が星座になる） ----
+
+  // 同色タップごとに星を追加。色が変わったら旧星座をフェードさせて新規開始。
+  // 戻り値: 現在描いている星座の星の数
+  constelTap({ x, y, color, streak }) {
+    if (!this.enabled || color === 'gold') return 0;
+    let cur = this.constels[this.constels.length - 1];
+    const needNew = !cur || cur.mode !== 'building' || cur.color !== color || streak <= 1;
+    if (needNew) {
+      if (cur && cur.mode === 'building') cur.mode = 'fade';
+      cur = { color, pts: [], mode: 'building', t: 0, born: performance.now() };
+      this.constels.push(cur);
+      if (this.constels.length > 3) this.constels.shift(); // 上限
+    }
+    cur.pts.push({ x, y });
+    return cur.pts.length;
+  }
+
+  // 描画中の星座の座標列（星座マッチング用）
+  constelPoints() {
+    const cur = this.constels[this.constels.length - 1];
+    return cur && cur.mode === 'building' ? cur.pts.slice() : [];
+  }
+
+  // 星座完成 → 輝きフラッシュ後にフェード。各星から星屑を放つ
+  constelComplete() {
+    const cur = this.constels[this.constels.length - 1];
+    if (!cur || cur.mode !== 'building') return;
+    cur.mode = 'complete';
+    cur.t = 0;
+    const rgb = this._rgb(cur.color);
+    for (const p of cur.pts) {
+      for (let i = 0; i < (this.reduced ? 2 : 4); i++) this._dust(p.x, p.y, rgb, { speed: 80, life: 600 });
+    }
+    const last = cur.pts[cur.pts.length - 1];
+    this.starburst(last.x, last.y, cur.color, 8);
+  }
+
+  // ストリークが切れた（Miss・FEVER突入など）→ 静かにフェード
+  constelBreak() {
+    const cur = this.constels[this.constels.length - 1];
+    if (cur && cur.mode === 'building') cur.mode = 'fade';
+  }
+
+  // 星座の更新と描画（particlesより先に呼び、線が下・粒が上になるようにする）
+  _drawConstels(ctx, dt, now) {
+    const cs = this.constels;
+    for (let i = cs.length - 1; i >= 0; i--) {
+      const c = cs[i];
+      let alpha = 0.85;
+      let width = 2;
+      if (c.mode === 'complete') {
+        c.t += dt;
+        // 1.4秒の輝きフラッシュ → フェードへ
+        const k = c.t / 1400;
+        if (k >= 1) { c.mode = 'fade'; c.t = 0; continue; }
+        alpha = 1;
+        width = 3.5 + Math.sin(k * Math.PI) * 2;
+      } else if (c.mode === 'fade') {
+        c.t += dt;
+        const k = c.t / 600;
+        if (k >= 1) { cs.splice(i, 1); continue; }
+        alpha = 0.85 * (1 - k);
+      }
+      const rgb = this._rgb(c.color);
+      const pts = c.pts;
+      // 輝線（太い淡い光 + 細い芯）
+      if (pts.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j].x, pts[j].y);
+        ctx.globalAlpha = alpha * 0.28;
+        ctx.strokeStyle = `rgb(${rgb})`;
+        ctx.lineWidth = width * 3.2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = c.mode === 'complete' ? 'rgba(255,255,255,0.95)' : `rgb(${rgb})`;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      }
+      // 星ノード（十字のきらめき・各星ごとに位相をずらして瞬く）
+      for (let j = 0; j < pts.length; j++) {
+        const p = pts[j];
+        const tw = 0.7 + 0.3 * Math.sin(now * 0.005 + j * 1.7);
+        const r = (c.mode === 'complete' ? 7 : 5) * tw;
+        ctx.globalAlpha = alpha * tw;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(p.x - r, p.y); ctx.lineTo(p.x + r, p.y);
+        ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x, p.y + r);
+        ctx.stroke();
+        ctx.fillStyle = `rgb(${rgb})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   _add(p) {
@@ -310,7 +414,7 @@ export class TrailManager {
       }
     }
     const ps = this.particles;
-    if (ps.length === 0) {
+    if (ps.length === 0 && this.constels.length === 0) {
       if (this._dirty) {
         this.ctx.clearRect(0, 0, this.w, this.h);
         this._dirty = false;
@@ -325,6 +429,9 @@ export class TrailManager {
     ctx.globalCompositeOperation = 'lighter';
     this._dirty = true;
     const at = this.absorbTarget;
+
+    // 星座（輝線＋星ノード）を粒子より先に描く
+    if (this.constels.length) this._drawConstels(ctx, dt, now);
 
     for (let i = ps.length - 1; i >= 0; i--) {
       const p = ps[i];

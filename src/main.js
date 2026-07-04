@@ -17,6 +17,7 @@ import * as leaderboard from './leaderboardManager.js';
 import { loadPlayerName, savePlayerName } from './playerNameManager.js';
 import { TrailManager } from './trailManager.js';
 import { BrainChallengeManager } from './brainChallengeManager.js';
+import { matchZodiac } from './zodiacMatcher.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -103,6 +104,7 @@ let submitModalMode = 'submit'; // 'submit' | 'name-only'
 let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y}
 let feverLastTap = null;   // FEVER中: 前回タップ位置
 let reachNotified = false; // ゲージ90%の「REACH」演出を1チャージ1回にする
+let constellationCount = 0; // 完成した星座の数（ローカル表示のみ）
 
 // ---------- 設定の反映 ----------
 function applySettings() {
@@ -350,6 +352,17 @@ function handleTap(ad) {
     }
     lastTapByColor[ad.color] = { x: tapX, y: tapY };
 
+    // 星座: タップ位置が星になり輝線でつながる。規定数で12星座判定して完成
+    const starCount = trailMgr.constelTap({ x: tapX, y: tapY, color: ad.color, streak: res.streakCount });
+    if (starCount >= CONFIG.constellation.starsToComplete) {
+      const zodiac = matchZodiac(trailMgr.constelPoints());
+      trailMgr.constelComplete();
+      constellationCount++;
+      effects.milestone(`${zodiac.symbol} ${zodiac.name} COMPLETE!!`, 'ms-zodiac');
+      audioMgr.constellationComplete();
+      haptics.comboMilestone();
+    }
+
     // 同色2連続以上は音階上昇タップ音、初回（streak 1）は既存の判定SE
     if (res.streakCount >= 2) {
       audioMgr.playColorStreakTap({ streak: res.streakCount, judgement: res.judge.name });
@@ -376,6 +389,7 @@ function handleMiss(ad) {
   effects.pop(ad.xPos.x, ad.xPos.y - 20, `<i class="j-MISS">MISS</i>`, 'pop-miss');
   // 「閉じ損ねた」感を足す小さなノイズ粒子（Trailは出さない）
   trailMgr.spawnTapSpark({ x: ad.xPos.x, y: ad.xPos.y, color: 'miss', intensity: 0.6 });
+  trailMgr.constelBreak(); // 描きかけの星座は静かにフェード
   audioMgr.miss();
   haptics.miss();
 }
@@ -458,6 +472,7 @@ feverMgr.onStart = () => {
   hideBrainPanel();
   // 金色Trailモードへ。吸い込み先=FEVER BONUSカウンター位置（ステージ座標系）をキャッシュ
   feverLastTap = null;
+  trailMgr.constelBreak(); // 星座はFEVER中は休止
   trailMgr.setFever(true);
   const r = els.feverBonus.getBoundingClientRect();
   const s = els.stage.getBoundingClientRect();
@@ -599,6 +614,8 @@ function showResult(result, bestInfo) {
     ['FEVER中消去', result.fever.clearedAds],
     ['FEVER BONUS合計', result.fever.totalBonus.toLocaleString()],
     ['最大同色STREAK', result.sameColor.maxStreak],
+    // ローカル表示のみ（ランキングpayloadには含めない）
+    ['星座コンプリート', constellationCount],
   ];
   els.resultStats.innerHTML = rows
     .map(([k, v]) => `<div class="stat-k">${k}</div><div class="stat-v">${v}</div>`)
@@ -661,6 +678,7 @@ function startGame() {
   lastTapByColor = {};
   feverLastTap = null;
   reachNotified = false;
+  constellationCount = 0;
   $('fever-gauge').classList.remove('reach');
   trailMgr.clear();
   trailMgr.setFever(false);
