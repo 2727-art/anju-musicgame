@@ -146,35 +146,63 @@ export class AudioManager {
 
   // ==== Phase 4A ====
 
-  // 同色ストリークで音階が上がるタップ音（Cメジャーペンタトニック系ベル）。
-  // streak 1〜7 で上昇、8以上は上限音+装飾音。
+  // 同色ストリークで音階が上がるタップ音（Cメジャーペンタトニック2オクターブ）。
+  // streak 1〜12 で上昇、13以上は上限音+装飾音。高ストリークほど和音が厚くなる。
   playColorStreakTap({ streak = 1, judgement = 'GREAT' } = {}) {
     this._safe(() => {
-      const SCALE = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66];
-      const idx = Math.min(Math.max(streak, 1), 7) - 1;
+      const SCALE = [
+        523.25, 587.33, 659.25, 783.99, 880.0, 1046.5,
+        1174.66, 1318.51, 1567.98, 1760.0, 2093.0, 2349.32,
+      ];
+      const idx = Math.min(Math.max(streak, 1), 12) - 1;
       const freq = SCALE[idx];
       // ベル: 基音 + 2倍音（短く・控えめゲインで連打しても痛くない）
-      this._tone({ freq, type: 'triangle', dur: 0.12, vol: 0.22 });
-      this._tone({ freq: freq * 2, type: 'sine', dur: 0.16, vol: 0.07, delay: 0.01 });
-      if (streak >= 8) {
-        // 上限到達後は装飾音を足す（音階は上げ続けない）
-        this._tone({ freq: 1567.98, type: 'sine', dur: 0.09, vol: 0.1, delay: 0.05 });
+      this._tone({ freq, type: 'triangle', dur: 0.13, vol: 0.26 });
+      this._tone({ freq: freq * 2, type: 'sine', dur: 0.18, vol: 0.09, delay: 0.01 });
+      // 5連続以上: 完全5度を重ねてリーチ感（和音化）
+      if (streak >= 5) {
+        this._tone({ freq: freq * 1.5, type: 'triangle', dur: 0.12, vol: 0.12, delay: 0.01 });
+      }
+      // 7連続以上: 1オクターブ下の支え音で厚みを出す
+      if (streak >= 7) {
+        this._tone({ freq: freq / 2, type: 'sine', dur: 0.14, vol: 0.12 });
+      }
+      if (streak >= 13) {
+        // 上限到達後は装飾グリスを足す（音階は上げ続けない）
+        this._tone({ freq: 2637.02, type: 'sine', dur: 0.08, vol: 0.1, delay: 0.04 });
+        this._tone({ freq: 3135.96, type: 'sine', dur: 0.1, vol: 0.08, delay: 0.08 });
       }
       if (judgement === 'PERFECT') {
-        this._tone({ freq: 2093, type: 'sine', dur: 0.08, vol: 0.08, delay: 0.03 });
+        this._tone({ freq: freq * 4 > 4200 ? 4186 : freq * 4, type: 'sine', dur: 0.08, vol: 0.08, delay: 0.03 });
       }
     });
   }
 
-  // FEVER中の金色タップ音。タップ数で8段の上昇ランを繰り返す
+  // FEVERゲージ90%到達の「リーチ」期待感ライザー（1チャージにつき1回）
+  reachAnticipation() {
+    this._safe(() => {
+      this._tone({ freq: 440, freqEnd: 1760, type: 'sawtooth', dur: 0.6, vol: 0.14, filterFreq: 2400 });
+      this._tone({ freq: 1318.51, type: 'sine', dur: 0.12, vol: 0.16, delay: 0.5 });
+      this._tone({ freq: 1567.98, type: 'sine', dur: 0.14, vol: 0.16, delay: 0.58 });
+      this._tone({ freq: 2093.0, type: 'sine', dur: 0.2, vol: 0.16, delay: 0.66 });
+    });
+  }
+
+  // FEVER中の金色タップ音。タップ数で8段の上昇ランを繰り返す＋低音の打撃感
   playFeverGoldTap({ feverTapCount = 1 } = {}) {
     this._safe(() => {
       const RUN = [1046.5, 1174.66, 1318.51, 1567.98, 1760.0, 2093.0, 2349.32, 2637.02];
       const freq = RUN[(Math.max(feverTapCount, 1) - 1) % RUN.length];
-      this._tone({ freq, type: 'square', dur: 0.06, vol: 0.11, filterFreq: 3600 });
-      this._tone({ freq: freq * 1.5, type: 'sine', dur: 0.1, vol: 0.06, delay: 0.04 });
+      this._tone({ freq, type: 'square', dur: 0.07, vol: 0.13, filterFreq: 3800 });
+      this._tone({ freq: freq * 1.5, type: 'sine', dur: 0.11, vol: 0.08, delay: 0.04 });
+      // 短い低音キックでタップの手応えを出す（連打しても痛くない極短音）
+      this._tone({ freq: 150, freqEnd: 60, type: 'sine', dur: 0.07, vol: 0.16 });
       if (feverTapCount > 30) {
-        this._tone({ freq: freq * 2, type: 'sine', dur: 0.07, vol: 0.05, delay: 0.06 });
+        this._tone({ freq: freq * 2, type: 'sine', dur: 0.08, vol: 0.06, delay: 0.06 });
+      }
+      if (feverTapCount > 60) {
+        // 61タップ以上: 金色グリス追加（流星群の音）
+        this._tone({ freq: freq * 2, freqEnd: freq * 3, type: 'sine', dur: 0.12, vol: 0.05, delay: 0.05 });
       }
     });
   }

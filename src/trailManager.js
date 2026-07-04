@@ -97,10 +97,43 @@ export class TrailManager {
   // タップ位置の同色スパーク
   spawnTapSpark({ x, y, color, intensity = 1 }) {
     if (!this.enabled) return;
-    const base = this.reduced ? 3 : 6;
+    const base = this.reduced ? 5 : 10;
     const n = Math.max(1, Math.round(base * intensity));
     const rgb = this._rgb(color);
-    for (let i = 0; i < n; i++) this._dust(x, y, rgb, { speed: 90, life: 450 });
+    for (let i = 0; i < n; i++) this._dust(x, y, rgb, { speed: 120, size: 3, life: 500, up: 20 });
+  }
+
+  // 放射状のスターバースト（大きな瞬間用）
+  starburst(x, y, color, rays = 8) {
+    if (!this.enabled) return;
+    const rgb = this._rgb(color);
+    const n = this.reduced ? Math.ceil(rays / 2) : rays;
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n;
+      const v = 220 + Math.random() * 80;
+      this._add({
+        type: 'dust', x, y,
+        vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+        size: 3.5, life: 550, age: 0, rgb, twinkle: true,
+      });
+    }
+  }
+
+  // 1本の流れ星を追加（内部ヘルパー）
+  _comet(fromX, fromY, toX, toY, rgb, { size = 3, dustRate = 0.6, arriveBurst = 3, curve = 0.15 } = {}) {
+    const dist = Math.hypot(toX - fromX, toY - fromY);
+    const mx = (fromX + toX) / 2 - (toY - fromY) * (curve + Math.random() * 0.1);
+    const my = (fromY + toY) / 2 + (toX - fromX) * (curve + Math.random() * 0.1);
+    this._add({
+      type: 'comet',
+      fx: fromX, fy: fromY, cx: mx, cy: my, tx: toX, ty: toY,
+      t: 0,
+      dur: Math.max(150, Math.min(420, dist * 0.85)),
+      rgb, size,
+      dustRate: this.reduced ? dustRate * 0.5 : dustRate,
+      arriveBurst,
+      absorb: false,
+    });
   }
 
   // 前回同色タップ位置 → 今回位置への色付き流れ星。streakが伸びるほど豪華に
@@ -108,54 +141,65 @@ export class TrailManager {
     if (!this.enabled) return;
     const rgb = this._rgb(color);
     // 到着点スパーク（streakで強く）
-    this.spawnTapSpark({ x: toX, y: toY, color, intensity: Math.min(1 + streak * 0.2, 2.4) });
+    this.spawnTapSpark({ x: toX, y: toY, color, intensity: Math.min(1 + streak * 0.25, 3) });
     if (streak < 2) return;
 
     const dist = Math.hypot(toX - fromX, toY - fromY);
-    // streak段階: 2=短い尾 / 3-4=星粒 / 5-6=明確な流れ星 / 7+=光の軌道
+    // streak段階: 2=短い尾 / 3-4=星粒 / 5-6=二重流れ星 / 7+=三連流れ星+光の軌道
     const tier = streak >= 7 ? 3 : streak >= 5 ? 2 : streak >= 3 ? 1 : 0;
     if (this.reduced && dist > window.innerHeight * 0.9) return; // REDUCEDでは超長距離は省略
-    // 中間制御点（軽くカーブさせる）
-    const mx = (fromX + toX) / 2 - (toY - fromY) * (0.12 + Math.random() * 0.12);
-    const my = (fromY + toY) / 2 + (toX - fromX) * (0.12 + Math.random() * 0.12);
-    this._add({
-      type: 'comet',
-      fx: fromX, fy: fromY, cx: mx, cy: my, tx: toX, ty: toY,
-      t: 0,
-      dur: Math.max(160, Math.min(420, dist * 0.9)),
-      rgb,
-      size: 2.5 + tier * 0.9,
-      dustRate: (this.reduced ? 0.5 : 1) * (0.35 + tier * 0.35), // 1msあたりではなくフレームあたり期待値
-      arriveBurst: tier >= 1 ? 3 + tier * 2 : 0,
-      absorb: false,
+    this._comet(fromX, fromY, toX, toY, rgb, {
+      size: 3 + tier * 1.1,
+      dustRate: 0.5 + tier * 0.45,
+      arriveBurst: 3 + tier * 3,
     });
-    if (tier >= 3 && !this.reduced) {
-      this._add({ type: 'ring', x: toX, y: toY, r: 12, maxR: 60, life: 420, age: 0, rgb });
+    // 5連続以上は流れ星を重ねてリーチ感を出す（少しずらした軌道のエコー）
+    if (tier >= 2) {
+      this._comet(fromX, fromY, toX, toY, rgb, { size: 2, dustRate: 0.3, arriveBurst: 0, curve: -0.22 });
+    }
+    if (tier >= 3) {
+      this._comet(fromX, fromY, toX, toY, rgb, { size: 2, dustRate: 0.3, arriveBurst: 0, curve: 0.38 });
+      this.starburst(toX, toY, color, 10);
+      if (!this.reduced) {
+        this._add({ type: 'ring', x: toX, y: toY, r: 12, maxR: 84, life: 480, age: 0, rgb });
+      }
     }
   }
 
   // FEVER中の金色流れ星。feverTapCountが増えるほど豪華に
   spawnFeverTrail({ fromX, fromY, toX, toY, feverTapCount }) {
     if (!this.enabled) return;
-    const rgb = COLOR_RGB.gold;
     const tier = feverTapCount > 60 ? 3 : feverTapCount > 30 ? 2 : feverTapCount > 10 ? 1 : 0;
-    this.spawnTapSpark({ x: toX, y: toY, color: 'gold', intensity: 1.2 + tier * 0.4 });
-    const dist = Math.hypot(toX - fromX, toY - fromY);
-    const mx = (fromX + toX) / 2 - (toY - fromY) * 0.15;
-    const my = (fromY + toY) / 2 + (toX - fromX) * 0.15;
-    this._add({
-      type: 'comet',
-      fx: fromX, fy: fromY, cx: mx, cy: my, tx: toX, ty: toY,
-      t: 0,
-      dur: Math.max(140, Math.min(360, dist * 0.7)),
-      rgb,
-      size: 3 + tier,
-      dustRate: (this.reduced ? 0.5 : 1) * (0.5 + tier * 0.5),
-      arriveBurst: 2 + tier * 2,
-      absorb: false,
+    this.spawnTapSpark({ x: toX, y: toY, color: 'gold', intensity: 1.5 + tier * 0.5 });
+    this._comet(fromX, fromY, toX, toY, COLOR_RGB.gold, {
+      size: 3.5 + tier * 1.2,
+      dustRate: 0.7 + tier * 0.55,
+      arriveBurst: 3 + tier * 3,
     });
+    // 31タップ以上は二重の金色流れ星（流星群感）
+    if (tier >= 2) {
+      this._comet(fromX, fromY, toX, toY, COLOR_RGB.gold, { size: 2.2, dustRate: 0.35, arriveBurst: 0, curve: -0.25 });
+    }
     // 星屑がBONUSカウンターへ吸い込まれる（tierが上がるほど多く）
-    this.spawnBonusAbsorb({ x: toX, y: toY, count: 1 + tier });
+    this.spawnBonusAbsorb({ x: toX, y: toY, count: 2 + tier * 2 });
+  }
+
+  // FEVER中に自動で画面を横切る金色アンビエント流星（_tickから呼ぶ）
+  _ambientMeteor() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // 上端または左端から対角に流す
+    const fromTop = Math.random() < 0.6;
+    const fx = fromTop ? Math.random() * w : -30;
+    const fy = fromTop ? -30 : Math.random() * h * 0.5;
+    const tx = fx + w * (0.35 + Math.random() * 0.5) * (Math.random() < 0.5 ? 1 : -0.6);
+    const ty = fy + h * (0.35 + Math.random() * 0.45);
+    this._comet(fx, fy, tx, ty, COLOR_RGB.gold, {
+      size: 2 + Math.random() * 2.5,
+      dustRate: 0.55,
+      arriveBurst: 0,
+      curve: 0.05,
+    });
   }
 
   // BONUSカウンター方向へ吸い込まれる星屑
@@ -193,6 +237,15 @@ export class TrailManager {
   _tick(now) {
     const dt = Math.min(50, now - this._last);
     this._last = now;
+    // FEVER中はタップと無関係に金色流星群を流し続ける（REDUCEDは半分の頻度）
+    if (this.fever && this.enabled) {
+      this._meteorTimer = (this._meteorTimer || 0) + dt;
+      const interval = this.reduced ? 520 : 260;
+      if (this._meteorTimer >= interval) {
+        this._meteorTimer = 0;
+        this._ambientMeteor();
+      }
+    }
     const ps = this.particles;
     if (ps.length === 0) {
       if (this._dirty) {

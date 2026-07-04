@@ -239,6 +239,43 @@ body.fever #fever-fill { background: linear-gradient(90deg, #ffb800, var(--gold)
 body.fever #fever-label { animation: fever-blink 0.39s steps(2) infinite; }
 @keyframes fever-blink { 50% { opacity: 0.4; } }
 
+/* ゲージ90%のREACH状態: 虹色に脈動して期待感を煽る */
+#fever-gauge.reach #fever-fill {
+  background: linear-gradient(90deg, var(--red), var(--yellow), var(--green), var(--blue), var(--purple), var(--pink));
+  background-size: 300% 100%;
+  animation: reach-rainbow 0.77s linear infinite;
+  box-shadow: 0 0 16px var(--gold);
+}
+#fever-gauge.reach #fever-label {
+  color: var(--gold);
+  animation: fever-blink 0.39s steps(2) infinite;
+  text-shadow: 0 0 8px var(--gold);
+}
+@keyframes reach-rainbow { to { background-position: 300% 0; } }
+
+/* FEVER中: 156BPMの拍に同期して画面周辺が金色に脈動 */
+#beat-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 430;
+  opacity: 0;
+}
+body.fever #beat-vignette {
+  box-shadow: inset 0 0 90px 18px rgba(255, 201, 60, 0.55);
+  animation: beat-pulse 0.3846s ease-out infinite; /* 60/156秒 = 1拍 */
+}
+@keyframes beat-pulse {
+  0%   { opacity: 0.85; }
+  60%  { opacity: 0.15; }
+  100% { opacity: 0.1; }
+}
+body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
+
+/* 5連続以上のスコアポップ強調 */
+.pop.pop-hot b { font-size: 24px; }
+.pop.pop-hot i { font-size: 15px; }
+
 .hud-sub { justify-content: space-between; font-size: 12px; font-weight: 700; }
 #streak { display: flex; align-items: center; gap: 6px; text-shadow: 0 0 6px rgba(0,0,0,0.8); }
 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--dc, #fff); background: var(--dc, #fff); }
@@ -457,6 +494,10 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
   box-shadow: inset 0 0 60px 12px var(--pink), inset 0 0 140px 30px rgba(123, 45, 255, 0.5);
 }
 .edge-flash.ef-gold { box-shadow: inset 0 0 70px 14px var(--gold), inset 0 0 160px 34px rgba(255, 150, 0, 0.5); }
+.edge-flash.ef-red    { box-shadow: inset 0 0 60px 12px var(--red), inset 0 0 140px 30px rgba(255, 59, 78, 0.4); }
+.edge-flash.ef-blue   { box-shadow: inset 0 0 60px 12px var(--blue), inset 0 0 140px 30px rgba(45, 168, 255, 0.4); }
+.edge-flash.ef-yellow { box-shadow: inset 0 0 60px 12px var(--yellow), inset 0 0 140px 30px rgba(255, 212, 0, 0.4); }
+.edge-flash.ef-green  { box-shadow: inset 0 0 60px 12px var(--green), inset 0 0 140px 30px rgba(53, 224, 106, 0.4); }
 .edge-flash.show { animation: edge-flash 0.55s ease-out both; }
 @keyframes edge-flash { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 

@@ -96,6 +96,7 @@ let submitModalMode = 'submit'; // 'submit' | 'name-only'
 // Phase 4A: 流れ星の始点管理
 let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y}
 let feverLastTap = null;   // FEVER中: 前回タップ位置
+let reachNotified = false; // ゲージ90%の「REACH」演出を1チャージ1回にする
 
 // ---------- 設定の反映 ----------
 function applySettings() {
@@ -217,12 +218,30 @@ function onStreakProgress(res, ad) {
   } else if (sc === 5) {
     effects.streakNote(`SAME COLOR STREAK! ×${res.streakMult.toFixed(2)}`, `sn-${ad.color} sn-strong`);
     audioMgr.sameColorStreak(5);
+    effects.edgeFlash(`ef-${ad.color}`); // 同色のネオンフラッシュでリーチ感
   } else if (sc === 7) {
     effects.streakNote(`STREAK MAX!! ×${res.streakMult.toFixed(2)}`, `sn-${ad.color} sn-strong`);
     audioMgr.sameColorStreak(7);
+    effects.edgeFlash(`ef-${ad.color}`);
+  } else if (sc > 7 && sc % 5 === 0) {
+    // 7超えは5刻みで縁フラッシュ（点滅しすぎない範囲で盛る）
+    effects.edgeFlash(`ef-${ad.color}`);
+    effects.streakNote(`${sc} CHAIN!!`, `sn-${ad.color} sn-strong`);
   }
   if (sc >= CONFIG.streakRingFrom) {
     effects.ring(ad.xPos.x, ad.xPos.y, ad.color);
+  }
+}
+
+// FEVERゲージ90%で「REACH!!」（パチンコのリーチ的な期待感演出）
+function checkReach() {
+  if (feverMgr.active || reachNotified) return;
+  if (feverMgr.ratio >= 0.9) {
+    reachNotified = true;
+    els.feverLabel.textContent = 'REACH!!';
+    $('fever-gauge').classList.add('reach');
+    audioMgr.reachAnticipation();
+    haptics.comboMilestone();
   }
 }
 
@@ -263,6 +282,7 @@ function handleTap(ad) {
     lastTappedColor = ad.color;
     scoreMgr.addScore(res.points);
     feverMgr.addGauge(res.judge.name, res.streakMult, t);
+    checkReach();
 
     // TARGET COLOR CHALLENGE 判定（スコア・コンボ・ゲージには一切影響しない）
     let brainResult = null;
@@ -283,7 +303,7 @@ function handleTap(ad) {
 
     effects.pop(tapX, tapY - 30,
       `<b>+${res.points.toLocaleString()}</b><i class="j-${res.judge.name}">${judgeLabel(res.judge.name)}</i>`,
-      `pop-${ad.color}`);
+      `pop-${ad.color}${res.streakCount >= 5 ? ' pop-hot' : ''}`);
     effects.burst(tapX, tapY, ad.color, false);
 
     // 色付き流れ星: 同色2連続以上なら前回同色位置から接続、それ以外はスパークのみ
@@ -395,6 +415,9 @@ feverMgr.onStart = () => {
   effects.edgeFlash('ef-gold');
   audioMgr.feverStart();
   haptics.feverStart();
+  // REACH表示を解除して次チャージに備える
+  reachNotified = false;
+  $('fever-gauge').classList.remove('reach');
   // Brain ChallengeはFEVER中は停止（ペナルティなし）
   brainMgr.forceEnd();
   hideBrainPanel();
@@ -594,6 +617,8 @@ function startGame() {
   // Phase 4A リセット
   lastTapByColor = {};
   feverLastTap = null;
+  reachNotified = false;
+  $('fever-gauge').classList.remove('reach');
   trailMgr.clear();
   trailMgr.setFever(false);
   brainMgr.resetRun();
