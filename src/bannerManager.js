@@ -70,9 +70,10 @@ export class BannerManager {
   }
 
   // 1枚スポーンする。color は呼び出し側（同色制御ロジック）が決める。
+  // 座標は9:16ステージ（#banner-layerはステージ全面）基準。
   spawn({ color, songTime, fever }) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const vw = this.bannerLayer.clientWidth;
+    const vh = this.bannerLayer.clientHeight;
     const hud = CONFIG.hud;
     const B = CONFIG.banner;
 

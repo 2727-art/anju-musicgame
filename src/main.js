@@ -45,6 +45,7 @@ const els = {
   brainColorName: $('brain-color-name'), brainGaugeFill: $('brain-gauge-fill'),
   brainChain: $('brain-chain'),
   resultBrain: $('result-brain'), resultBrainStats: $('result-brain-stats'),
+  stage: $('stage'),
   // ランキング（Phase 3）
   submitStatus: $('submit-status'), submitBtn: $('submit-btn'),
   rankingBtnResult: $('ranking-btn-result'), rankingBtnStart: $('ranking-btn-start'),
@@ -421,11 +422,15 @@ feverMgr.onStart = () => {
   // Brain ChallengeはFEVER中は停止（ペナルティなし）
   brainMgr.forceEnd();
   hideBrainPanel();
-  // 金色Trailモードへ。吸い込み先=FEVER BONUSカウンター位置をキャッシュ
+  // 金色Trailモードへ。吸い込み先=FEVER BONUSカウンター位置（ステージ座標系）をキャッシュ
   feverLastTap = null;
   trailMgr.setFever(true);
   const r = els.feverBonus.getBoundingClientRect();
-  trailMgr.setAbsorbTarget(r.left + r.width / 2 || window.innerWidth / 2, r.top + r.height / 2 || 110);
+  const s = els.stage.getBoundingClientRect();
+  trailMgr.setAbsorbTarget(
+    (r.left - s.left + r.width / 2) || els.stage.clientWidth / 2,
+    (r.top - s.top + r.height / 2) || 110
+  );
   // 画面上の既存×印も金色化して爆発感を出す（ターゲットリングも解除）
   for (const ad of bannerMgr.active) {
     if (ad.state === 'alive') {
@@ -445,7 +450,7 @@ feverMgr.onEnd = (payout, kills) => {
   trailMgr.setFever(false);
   feverLastTap = null;
   lastTapByColor = {}; // FEVER前の位置は古いので接続しない
-  effects.pop(window.innerWidth / 2, window.innerHeight * 0.4,
+  effects.pop(els.stage.clientWidth / 2, els.stage.clientHeight * 0.4,
     `<b>FEVER BONUS<br>+${payout.toLocaleString()}</b><i class="j-GOLD">${kills} ADS CLOSED</i>`, 'pop-payout');
   // スコアへカウントアップ加算
   scoreMgr.addScore(payout);

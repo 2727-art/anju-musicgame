@@ -21,11 +21,17 @@ export class TrailManager {
     this.settings = settings;
     this.particles = [];
     this.fever = false;
-    this.absorbTarget = { x: window.innerWidth / 2, y: 90 }; // FEVER BONUSカウンター位置（fever開始時に更新）
+    this.w = 0; // ステージサイズ（resizeで更新）
+    this.h = 0;
     this._last = performance.now();
     this._dirty = false;
     this.resize();
+    this.absorbTarget = { x: this.w / 2, y: 90 }; // FEVER BONUSカウンター位置（fever開始時に更新）
     window.addEventListener('resize', () => this.resize());
+    // ステージ（9:16固定）のサイズ変化に追従（resizeイベントが来ない環境対策）
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => this.resize()).observe(this.canvas);
+    }
     const loop = (t) => { this._tick(t); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   }
@@ -53,18 +59,19 @@ export class TrailManager {
     this.absorbTarget = { x, y };
   }
 
+  // 9:16ステージ（canvasはステージ全面）のCSSサイズに合わせて解像度を設定
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.round(window.innerWidth * dpr);
-    this.canvas.height = Math.round(window.innerHeight * dpr);
-    this.canvas.style.width = `${window.innerWidth}px`;
-    this.canvas.style.height = `${window.innerHeight}px`;
+    this.w = this.canvas.clientWidth || window.innerWidth;
+    this.h = this.canvas.clientHeight || window.innerHeight;
+    this.canvas.width = Math.round(this.w * dpr);
+    this.canvas.height = Math.round(this.h * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   clear() {
     this.particles.length = 0;
-    this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    this.ctx.clearRect(0, 0, this.w, this.h);
     this._dirty = false;
   }
 
@@ -147,7 +154,7 @@ export class TrailManager {
     const dist = Math.hypot(toX - fromX, toY - fromY);
     // streak段階: 2=短い尾 / 3-4=星粒 / 5-6=二重流れ星 / 7+=三連流れ星+光の軌道
     const tier = streak >= 7 ? 3 : streak >= 5 ? 2 : streak >= 3 ? 1 : 0;
-    if (this.reduced && dist > window.innerHeight * 0.9) return; // REDUCEDでは超長距離は省略
+    if (this.reduced && dist > this.h * 0.9) return; // REDUCEDでは超長距離は省略
     this._comet(fromX, fromY, toX, toY, rgb, {
       size: 3 + tier * 1.1,
       dustRate: 0.5 + tier * 0.45,
@@ -186,8 +193,8 @@ export class TrailManager {
 
   // FEVER中に自動で画面を横切る金色アンビエント流星（_tickから呼ぶ）
   _ambientMeteor() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.w;
+    const h = this.h;
     // 上端または左端から対角に流す
     const fromTop = Math.random() < 0.6;
     const fx = fromTop ? Math.random() * w : -30;
@@ -249,15 +256,15 @@ export class TrailManager {
     const ps = this.particles;
     if (ps.length === 0) {
       if (this._dirty) {
-        this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        this.ctx.clearRect(0, 0, this.w, this.h);
         this._dirty = false;
       }
       return;
     }
 
     const ctx = this.ctx;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.w;
+    const h = this.h;
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = 'lighter';
     this._dirty = true;

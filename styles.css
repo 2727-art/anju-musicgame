@@ -27,9 +27,24 @@ html, body {
 
 .hidden { display: none !important; }
 
+/* ---------- 9:16固定ステージ ----------
+   PC横長では左右、モバイル縦長では上下がレターボックスになる。
+   ゲーム内レイヤーはすべてこの中に absolute で配置する */
+#stage {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(100vw, calc(100vh * 9 / 16));
+  height: min(100vh, calc(100vw * 16 / 9));
+  overflow: hidden;
+  background: var(--bg-dark);
+  box-shadow: 0 0 48px rgba(123, 45, 255, 0.35), 0 0 120px rgba(255, 45, 149, 0.15);
+}
+
 /* ---------- 背景 ---------- */
 #bg {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
@@ -45,11 +60,11 @@ body.fever #bg::after {
   background: radial-gradient(ellipse at 50% 30%, rgba(255, 201, 60, 0.28), rgba(60, 20, 0, 0.5));
 }
 
-/* ---------- レイヤー ---------- */
-#banner-layer { position: fixed; inset: 0; z-index: 1; }
-.trail-layer  { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
-#x-layer      { position: fixed; inset: 0; z-index: 300; pointer-events: none; }
-#fx-layer     { position: fixed; inset: 0; z-index: 400; pointer-events: none; }
+/* ---------- レイヤー（すべて#stage基準） ---------- */
+#banner-layer { position: absolute; inset: 0; z-index: 1; }
+.trail-layer  { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
+#x-layer      { position: absolute; inset: 0; z-index: 300; pointer-events: none; }
+#fx-layer     { position: absolute; inset: 0; z-index: 400; pointer-events: none; }
 #brain-panel  { z-index: 460; }
 #hud          { z-index: 500; }
 #flash        { z-index: 600; }
@@ -175,7 +190,7 @@ body.fx-reduced .xbtn.x-target::after { animation: none; opacity: 0.45; }
 
 /* ---------- HUD ---------- */
 #hud {
-  position: fixed;
+  position: absolute;
   top: 0; left: 0; right: 0;
   padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 6px;
   pointer-events: none;
@@ -255,7 +270,7 @@ body.fever #fever-label { animation: fever-blink 0.39s steps(2) infinite; }
 
 /* FEVER中: 156BPMの拍に同期して画面周辺が金色に脈動 */
 #beat-vignette {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 430;
@@ -331,7 +346,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 }
 
 #flash {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: radial-gradient(circle, rgba(255, 240, 180, 0.9), rgba(255, 201, 60, 0.4));
   opacity: 0;
@@ -342,7 +357,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 
 /* ---------- デバッグ ---------- */
 #debug {
-  position: fixed;
+  position: absolute;
   left: 4px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
   font-size: 10px;
@@ -356,7 +371,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 
 /* ---------- スクリーン共通 ---------- */
 .screen {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
@@ -397,7 +412,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 @keyframes btn-pulse { to { transform: scale(1.06); box-shadow: 0 0 32px var(--pink), 0 6px 16px rgba(0,0,0,0.4); } }
 
 #loading-track {
-  width: min(70vw, 320px);
+  width: min(70%, 320px);
   height: 10px;
   border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -431,7 +446,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 
 /* ---------- コンボ節目・ストリーク通知 ---------- */
 .milestone {
-  position: fixed;
+  position: absolute;
   left: 50%; top: 32%;
   transform: translate(-50%, -50%);
   font-size: 34px;
@@ -458,7 +473,7 @@ body.fx-reduced.fever #beat-vignette { animation: none; opacity: 0.25; }
 body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 
 .streak-note {
-  position: fixed;
+  position: absolute;
   left: 50%; top: 21%;
   transform: translate(-50%, -50%);
   font-size: 16px;
@@ -486,7 +501,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 
 /* 画面周辺のネオンフラッシュ */
 .edge-flash {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: 0;
@@ -522,7 +537,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 
 /* ---------- 設定画面 ---------- */
 .settings-panel {
-  width: min(84vw, 340px);
+  width: min(84%, 340px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -610,7 +625,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 12px 18px;
-  max-height: 34vh;
+  max-height: 30%;
   overflow-y: auto;
 }
 .stat-k { color: #b89ae0; text-align: left; letter-spacing: 1px; }
@@ -620,7 +635,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 
 /* ---------- TARGET COLOR CHALLENGE（Phase 4A） ---------- */
 #brain-panel {
-  position: fixed;
+  position: absolute;
   top: 128px;
   left: 50%;
   transform: translateX(-50%);
@@ -689,7 +704,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 
 /* Brain Challenge リザルト欄（ローカル表示のみ） */
 .result-brain {
-  width: min(86vw, 340px);
+  width: min(86%, 340px);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(123, 45, 255, 0.5);
   border-radius: 12px;
@@ -739,7 +754,7 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 .submit-status.err { color: #ff8f9d; }
 
 .modal-panel {
-  width: min(86vw, 360px);
+  width: min(86%, 360px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -766,8 +781,8 @@ body.fx-reduced .milestone.show { animation-duration: 0.55s; }
 .ranking-status { min-height: 1.2em; font-size: 12px; font-weight: 700; color: #e8d4ff; }
 .ranking-list {
   list-style: none;
-  width: min(92vw, 420px);
-  max-height: 52vh;
+  width: min(92%, 420px);
+  max-height: 46%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
