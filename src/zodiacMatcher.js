@@ -81,6 +81,9 @@ const ZODIACS = ZODIAC_DEFS.map(([name, symbol, pts]) => {
   return { name, symbol, norm: applyNorm(rs, p), shape: applyNorm(pts, p) };
 });
 
+// 星座の一覧（名前とシンボル）。運勢のフォールバック判定などに使う
+export const ZODIAC_LIST = ZODIACS.map((z) => ({ name: z.name, symbol: z.symbol }));
+
 // タップ座標列（{x,y}の配列）→ 最も形が近い星座と、
 // プレイヤーの描画に位置合わせした「本来の形」(ghost: [[x,y],...]) を返す
 export function matchZodiac(rawPts) {

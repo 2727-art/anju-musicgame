@@ -18,7 +18,9 @@ import { loadPlayerName, savePlayerName } from './playerNameManager.js';
 import { TrailManager } from './trailManager.js';
 import { BrainChallengeManager } from './brainChallengeManager.js';
 import { matchZodiac } from './zodiacMatcher.js';
-import { tellFortune } from './fortuneTeller.js';
+import { tellFortune, tellDailyFortune } from './fortuneTeller.js';
+import { ZODIAC_LIST } from './zodiacMatcher.js';
+import { loadZodiacStore, saveZodiacStore } from './zodiacCollectionStore.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +51,9 @@ const els = {
   resultBrain: $('result-brain'), resultBrainStats: $('result-brain-stats'),
   stage: $('stage'),
   fortuneNote: $('fortune-note'), zodiacCollection: $('zodiac-collection'),
+  resultFortune: $('result-fortune'), rfPerfect: $('rf-perfect'),
+  rfZodiac: $('rf-zodiac'), rfStars: $('rf-stars'),
+  rfText: $('rf-text'), rfLucky: $('rf-lucky'),
   // 商業風FEVER HUD
   scoreDelta: $('score-delta'),
   fcNum: $('fc-num'), fcJudge: $('fc-judge'),
@@ -106,32 +111,75 @@ let submitModalMode = 'submit'; // 'submit' | 'name-only'
 let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y}
 let feverLastTap = null;   // FEVER中: 前回タップ位置
 let reachNotified = false; // ゲージ90%の「REACH」演出を1チャージ1回にする
-let constellationCount = 0; // 完成した星座の数（ローカル表示のみ）
-const collectedZodiacs = new Map(); // symbol → chip要素（このランで完成した星座のコレクション）
+let constellationCount = 0;           // 完成した星座の数（ローカル表示のみ）
+let zodiacStore = loadZodiacStore();  // プレイをまたぐ永続コレクション（localStorage）
+const chipMap = new Map();            // symbol → chip要素
+const runZodiacs = new Set();         // このランで完成した星座（リザルト表示用）
+const zodiacRunCounts = new Map();    // name → {zodiac, count}（今日の運勢の「星回り」判定用）
+let colorTapCounts = { red: 0, blue: 0, yellow: 0, green: 0 }; // ラッキーカラー判定用
+let zodiacPerfectThisRun = false;
 
-// コレクションに星座チップを追加（既にあればバウンスだけ）
-function addZodiacChip(zodiac) {
-  let chip = collectedZodiacs.get(zodiac.symbol);
-  if (!chip) {
-    chip = document.createElement('span');
-    chip.className = 'zc-chip';
-    chip.textContent = zodiac.symbol;
-    chip.title = zodiac.name;
-    els.zodiacCollection.appendChild(chip);
-    collectedZodiacs.set(zodiac.symbol, chip);
-  }
-  retrigger(chip, 'pop');
+function makeChipEl(symbol, name, dim) {
+  const chip = document.createElement('span');
+  chip.className = dim ? 'zc-chip zc-dim' : 'zc-chip';
+  chip.textContent = symbol;
+  chip.title = name;
+  els.zodiacCollection.appendChild(chip);
+  chipMap.set(symbol, chip);
+  return chip;
 }
 
-function resetZodiacCollection() {
-  collectedZodiacs.clear();
+// ゲーム開始時: 過去に集めた星座を薄点灯で並べる
+function renderZodiacCollection() {
+  chipMap.clear();
+  runZodiacs.clear();
   els.zodiacCollection.textContent = '';
+  for (const sym of zodiacStore.collected) {
+    const z = ZODIAC_LIST.find((z) => z.symbol === sym);
+    makeChipEl(sym, z ? z.name : sym, true);
+  }
 }
 
-// ゴーストの飛び先＝コレクションの次のチップ位置（ステージ座標）
-function zodiacChipTarget() {
+// 12星座コンプリートの特別演出（スコアには影響しない・周回制）
+function zodiacPerfect() {
+  zodiacPerfectThisRun = true;
+  zodiacStore = { collected: [], laps: zodiacStore.laps + 1 };
+  saveZodiacStore(zodiacStore);
+  effects.milestone('✨ 12星座コンプリート!! ✨', 'ms-zodiac-perfect');
+  effects.edgeFlash('ef-gold');
+  flashScreen();
+  trailMgr.zodiacPerfectBurst();
+  audioMgr.zodiacPerfect();
+  haptics.feverStart();
+  // 全チップを順番にバウンスさせる
+  let i = 0;
+  for (const chip of chipMap.values()) {
+    setTimeout(() => retrigger(chip, 'pop'), i * 90);
+    i++;
+  }
+}
+
+// コレクションに星座チップを点灯（ゴースト着地時に呼ばれる）
+function addZodiacChip(zodiac) {
+  let chip = chipMap.get(zodiac.symbol);
+  if (!chip) chip = makeChipEl(zodiac.symbol, zodiac.name, false);
+  chip.classList.remove('zc-dim'); // 過去分も今回完成で明るく
+  retrigger(chip, 'pop');
+  runZodiacs.add(zodiac.symbol);
+  // 永続コレクションを更新し、12種そろったら特別演出
+  if (!zodiacStore.collected.includes(zodiac.symbol)) {
+    zodiacStore.collected.push(zodiac.symbol);
+    saveZodiacStore(zodiacStore);
+    if (zodiacStore.collected.length >= 12) zodiacPerfect();
+  }
+}
+
+// ゴーストの飛び先＝その星座のチップ位置（未収集なら次のスロット）
+function zodiacChipTarget(symbol) {
+  const keys = [...chipMap.keys()];
+  const idx = keys.includes(symbol) ? keys.indexOf(symbol) : chipMap.size;
   return {
-    x: 20 + collectedZodiacs.size * 28,
+    x: 20 + idx * 28,
     y: els.stage.clientHeight - 38,
   };
 }
@@ -384,12 +432,16 @@ function handleTap(ad) {
 
     // 星座: どの色のタップも星になり輝線でつながる（広告を消した副産物・スコアには無関係）。
     // 規定数で12星座判定 → 本来の形のゴーストが重なり、コレクションへ飛んでいく
+    colorTapCounts[ad.color] = (colorTapCounts[ad.color] || 0) + 1;
     const starCount = trailMgr.constelTap({ x: tapX, y: tapY, color: ad.color });
     if (starCount >= CONFIG.constellation.starsToComplete) {
       const pts = trailMgr.constelPoints();
       const zodiac = matchZodiac(pts);
-      trailMgr.constelComplete({ ghost: zodiac.ghost, target: zodiacChipTarget() });
+      trailMgr.constelComplete({ ghost: zodiac.ghost, target: zodiacChipTarget(zodiac.symbol) });
       constellationCount++;
+      const zc = zodiacRunCounts.get(zodiac.name) || { zodiac, count: 0 };
+      zc.count++;
+      zodiacRunCounts.set(zodiac.name, zc);
       effects.milestone(`${zodiac.symbol} ${zodiac.name} COMPLETE!!`, 'ms-zodiac');
       // 今日の運勢風コメント（ラッキーカラー＝実際に描いた星の最頻色）
       const fortune = tellFortune(rnd, pts.map((p) => p.color));
@@ -652,7 +704,7 @@ function showResult(result, bestInfo) {
     ['FEVER BONUS合計', result.fever.totalBonus.toLocaleString()],
     ['最大同色STREAK', result.sameColor.maxStreak],
     // ローカル表示のみ（ランキングpayloadには含めない）
-    ['星座コンプリート', `${constellationCount}${collectedZodiacs.size ? ' ' + [...collectedZodiacs.keys()].join('') : ''}`],
+    ['星座コンプリート', `${constellationCount}${runZodiacs.size ? ' ' + [...runZodiacs].join('') : ''}`],
   ];
   els.resultStats.innerHTML = rows
     .map(([k, v]) => `<div class="stat-k">${k}</div><div class="stat-v">${v}</div>`)
@@ -664,6 +716,53 @@ function showResult(result, bestInfo) {
     : '';
   els.resultSeed.textContent = `seed: ${result.seed}`;
   els.result.classList.remove('hidden');
+}
+
+// リザルトの「今日の運勢」カード。
+// 星回り = このランで最も多く完成した星座（未完成なら最頻タップ色の四元素から日替わりで導出）。
+// ラッキーカラー = 実際に最もタップした色。すべて表示専用でスコア・ランキングに影響しない。
+function fillFortuneCard() {
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const luckyColor = Object.entries(colorTapCounts).sort((a, b) => b[1] - a[1])[0][0];
+  let zName, zSym;
+  const top = [...zodiacRunCounts.values()].sort((a, b) => b.count - a.count)[0];
+  if (top) {
+    zName = top.zodiac.name;
+    zSym = top.zodiac.symbol;
+  } else {
+    // 四元素対応: 赤=火 / 青=水 / 緑=地 / 黄=風 から日替わりで1座
+    const GROUPS = {
+      red: ['おひつじ座', 'しし座', 'いて座'],
+      blue: ['かに座', 'さそり座', 'うお座'],
+      green: ['おうし座', 'おとめ座', 'やぎ座'],
+      yellow: ['ふたご座', 'てんびん座', 'みずがめ座'],
+    };
+    const g = GROUPS[luckyColor] || GROUPS.red;
+    zName = g[new Date().getDate() % 3];
+    zSym = (ZODIAC_LIST.find((z) => z.name === zName) || { symbol: '✧' }).symbol;
+  }
+  const f = tellDailyFortune({
+    dateKey, zodiacName: zName, zodiacSymbol: zSym, luckyColor,
+    stats: {
+      constellations: constellationCount,
+      maxStreak: scoreMgr.maxStreak,
+      zodiacPerfect: zodiacPerfectThisRun,
+    },
+  });
+  els.rfZodiac.textContent = `本日の星回り: ${f.zodiacLine}`;
+  els.rfStars.textContent = f.stars;
+  els.rfText.textContent = f.text;
+  els.rfLucky.textContent = `ラッキーカラー: ${f.luckyColorJp} ／ ラッキーアイテム: ${f.luckyItem}`;
+  if (zodiacPerfectThisRun) {
+    els.rfPerfect.textContent = `⭐ 12星座コンプリート達成！（${zodiacStore.laps}周目）`;
+    els.rfPerfect.classList.remove('hidden');
+  } else if (zodiacStore.laps > 0) {
+    els.rfPerfect.textContent = `🌟 12星座コンプリート ${zodiacStore.laps}周 達成済み`;
+    els.rfPerfect.classList.remove('hidden');
+  } else {
+    els.rfPerfect.classList.add('hidden');
+  }
+  els.resultFortune.classList.remove('hidden');
 }
 
 function endGame() {
@@ -686,6 +785,8 @@ function endGame() {
   console.log('[PlayResult]', JSON.stringify(result));
   const bestInfo = saveIfBest(result);
   showResult(result, bestInfo);
+
+  fillFortuneCard();
 
   // Brain Trainingの結果はローカル表示のみ（スコア・ランク・ランキング・ローカルベストに影響しない）
   const bs = brainMgr.stats;
@@ -716,7 +817,10 @@ function startGame() {
   feverLastTap = null;
   reachNotified = false;
   constellationCount = 0;
-  resetZodiacCollection();
+  zodiacRunCounts.clear();
+  colorTapCounts = { red: 0, blue: 0, yellow: 0, green: 0 };
+  zodiacPerfectThisRun = false;
+  renderZodiacCollection();
   $('fever-gauge').classList.remove('reach');
   trailMgr.clear();
   trailMgr.setFever(false);

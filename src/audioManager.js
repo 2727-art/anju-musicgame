@@ -226,6 +226,20 @@ export class AudioManager {
     });
   }
 
+  // 12星座コンプリートの特別ファンファーレ（天球チャイムの豪華版）
+  zodiacPerfect() {
+    this._safe(() => {
+      const run = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093.0, 2637.02];
+      run.forEach((f, i) => this._tone({ freq: f, type: 'sine', dur: 0.3, vol: 0.15, delay: i * 0.08 }));
+      // 締めの和音
+      [1046.5, 1318.51, 1567.98, 2093.0].forEach((f) =>
+        this._tone({ freq: f, type: 'triangle', dur: 0.9, vol: 0.12, delay: 0.7 })
+      );
+      this._tone({ freq: 261.63, type: 'sine', dur: 0.9, vol: 0.14, delay: 0.7 });
+      this._tone({ freq: 3135.96, type: 'sine', dur: 0.5, vol: 0.09, delay: 1.0 });
+    });
+  }
+
   // Brain Chainリセット音（控えめ・不快にしない）
   playBrainReset() {
     this._safe(() => {

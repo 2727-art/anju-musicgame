@@ -745,6 +745,85 @@ body.fever #zodiac-collection { display: none; }
   60%  { transform: scale(1.3); opacity: 1; }
   100% { transform: scale(1); }
 }
+/* 過去のプレイで集めた星座（薄点灯）。今回のプレイで完成すると明るくなる */
+.zc-chip.zc-dim {
+  opacity: 0.38;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+/* 12星座コンプリート表示 */
+.milestone.ms-zodiac-perfect {
+  font-size: 32px;
+  color: #fff;
+  text-shadow: 0 0 14px var(--gold), 0 0 34px #9fd0ff, 0 0 60px var(--pink);
+}
+
+/* ---------- リザルトの「今日の運勢」カード ---------- */
+.result-fortune {
+  width: min(86%, 340px);
+  background: linear-gradient(180deg, rgba(24, 8, 44, 0.85), rgba(14, 4, 30, 0.85));
+  border: 1px solid rgba(159, 208, 255, 0.55);
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 0 14px rgba(159, 208, 255, 0.35), inset 0 0 20px rgba(123, 45, 255, 0.25);
+}
+.rf-head {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #9fd0ff;
+  text-shadow: 0 0 8px rgba(159, 208, 255, 0.8);
+}
+.rf-perfect {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 10px var(--gold);
+  animation: newbest-blink 0.6s steps(2) infinite;
+}
+.rf-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.rf-zodiac {
+  font-size: 17px;
+  font-weight: 900;
+  color: #eaf4ff;
+  text-shadow: 0 0 10px #9fd0ff;
+}
+.rf-stars {
+  font-size: 15px;
+  color: var(--gold);
+  text-shadow: 0 0 8px var(--gold);
+  letter-spacing: 2px;
+}
+.rf-text {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #e8e4ff;
+}
+.rf-lucky {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cfa9ff;
+}
+.rf-note { margin-top: 4px; font-size: 9px; color: #8f7bb0; }
+
+/* リザルトが縦に長くなったのでスクロール可能に */
+#result-screen {
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding-top: 26px;
+  padding-bottom: 30px;
+  -webkit-overflow-scrolling: touch;
+}
 @keyframes milestone-pop {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
   18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }

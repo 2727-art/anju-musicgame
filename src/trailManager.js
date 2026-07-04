@@ -426,6 +426,19 @@ export class TrailManager {
     }
   }
 
+  // 12星座コンプリートの全画面セレブレーション（色とりどりのスターバースト＋金シャワー）
+  zodiacPerfectBurst() {
+    if (!this.enabled) return;
+    const colors = ['red', 'blue', 'yellow', 'green', 'gold'];
+    for (let i = 0; i < (this.reduced ? 3 : 5); i++) {
+      const x = this.w * (0.2 + Math.random() * 0.6);
+      const y = this.h * (0.2 + Math.random() * 0.5);
+      this.starburst(x, y, colors[i % colors.length], 12);
+    }
+    this.spawnShards({ x: this.w / 2, y: this.h * 0.3, count: 30, spread: 420 });
+    this.spawnRays({ x: this.w / 2, y: this.h * 0.4, count: 10 });
+  }
+
   // FEVER突入時の全画面メガバースト
   feverKickoff() {
     if (!this.enabled) return;
