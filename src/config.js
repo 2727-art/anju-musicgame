@@ -1,6 +1,6 @@
 // ゲーム全体の設定値
 export const CONFIG = {
-  gameVersion: '3.0.0',
+  gameVersion: '3.1.0', // FEVER頻度調整（スコア仕様変更）につきv3.1.0 / leaderboardはv2へ世代交代
   bpm: 156,
   beatSec: 60 / 156, // ≒ 0.3846秒
 
@@ -53,8 +53,10 @@ export const CONFIG = {
 
   fever: {
     gaugeMax: 100,
-    gainBase: 4,        // 1消去あたりの基本ゲージ上昇
-    gainPerfectBonus: 1.5,
+    // 花火大会のフィナーレのように「1曲に1〜2回」の特別な時間にする
+    // （同色ストリーク倍率で早く貯まるので、狙うプレイヤーほど2回目に届く）
+    gainBase: 0.65,     // 1消去あたりの基本ゲージ上昇
+    gainPerfectBonus: 0.25,
     durationSec: 10,
     minActive: 9,
     maxActive: 12,
@@ -95,7 +97,8 @@ export const CONFIG = {
   // ランキング（Phase 3）。スコア仕様を変えたら leaderboardId も変えること
   // （古いスコアと新しいスコアを混ぜないための世代管理）。
   leaderboard: {
-    id: 'adbreaker_song001_v1',
+    id: 'adbreaker_song001_v2', // FEVER頻度調整で旧スコアと比較不能になったため世代交代
+
     fetchLimit: 50,
     nameMaxLen: 12,
     defaultName: 'ANON',
@@ -142,12 +145,13 @@ export const CONFIG = {
     resetLabel: 'BRAIN RESET',
   },
 
-  // ランク閾値（仮。調整しやすいようここに集約）
+  // ランク閾値（FEVER1〜2回/曲の新スコア経済に合わせて再調整。
+  // 参考: 2タップ/秒のほぼ最適プレイでFEVER3回・約163万点）
   ranks: [
-    { name: 'S', min: 1500000 },
-    { name: 'A', min: 1000000 },
-    { name: 'B', min: 700000 },
-    { name: 'C', min: 400000 },
+    { name: 'S', min: 1200000 },
+    { name: 'A', min: 800000 },
+    { name: 'B', min: 500000 },
+    { name: 'C', min: 250000 },
     { name: 'D', min: 0 },
   ],
 };

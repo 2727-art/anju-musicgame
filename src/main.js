@@ -111,6 +111,7 @@ let submitModalMode = 'submit'; // 'submit' | 'name-only'
 let lastTapByColor = {};   // 通常時: 色ごとの前回タップ位置 {x, y}
 let feverLastTap = null;   // FEVER中: 前回タップ位置
 let reachNotified = false; // ゲージ90%の「REACH」演出を1チャージ1回にする
+let feverFinaleFired = false; // FEVER終盤のしだれ柳フィナーレを1回だけ
 let constellationCount = 0;           // 完成した星座の数（ローカル表示のみ）
 let zodiacStore = loadZodiacStore();  // プレイをまたぐ永続コレクション（localStorage）
 const chipMap = new Map();            // symbol → chip要素
@@ -269,7 +270,8 @@ async function preloadAll() {
 function nextColor() {
   if (feverMgr.active) return 'gold';
   const names = CONFIG.colors.names;
-  if (lastTappedColor && rnd() < CONFIG.colors.sameColorChance) {
+  // 直前色バイアスは通常4色のみ対象（金色は絶対に混ぜない）
+  if (lastTappedColor && names.includes(lastTappedColor) && rnd() < CONFIG.colors.sameColorChance) {
     return lastTappedColor;
   }
   return names[Math.floor(rnd() * names.length)];
@@ -386,6 +388,11 @@ function handleTap(ad) {
       trailMgr.spawnBonusAbsorb({ x: tapX, y: tapY, count: 2 });
     }
     feverLastTap = { x: tapX, y: tapY };
+    // 花火: キル数でスターマイン→菊花→しだれ柳と豪華になる
+    const fwTier = feverMgr.kills > 35 ? 3 : feverMgr.kills > 15 ? 2 : 1;
+    trailMgr.firework({ x: tapX, y: tapY, tier: fwTier });
+    if (fwTier >= 2 && rnd() < 0.25) trailMgr.skyRocket({ tier: fwTier }); // ときどき打ち上げも
+
     audioMgr.playFeverGoldTap({ feverTapCount: feverMgr.kills });
     haptics.feverTap();
   } else {
@@ -555,6 +562,7 @@ feverMgr.onStart = () => {
   haptics.feverStart();
   // REACH表示を解除して次チャージに備える
   reachNotified = false;
+  feverFinaleFired = false;
   $('fever-gauge').classList.remove('reach');
   // Brain ChallengeはFEVER中は停止（ペナルティなし）
   brainMgr.forceEnd();
@@ -569,12 +577,10 @@ feverMgr.onStart = () => {
     (r.left - s.left + r.width / 2) || els.stage.clientWidth / 2,
     (r.top - s.top + r.height / 2) || 110
   );
-  // 画面上の既存×印も金色化して爆発感を出す（ターゲットリングも解除）
+  // 画面上の既存ボタンも金色★化して爆発感を出す（ターゲットリングも解除）
   for (const ad of bannerMgr.active) {
-    if (ad.state === 'alive') {
-      ad.color = 'gold';
-      ad.xEl.className = 'xbtn c-gold';
-    }
+    bannerMgr.recolor(ad, 'gold');
+    ad.xEl.classList.remove('x-target');
   }
 };
 
@@ -588,6 +594,13 @@ feverMgr.onEnd = (payout, kills) => {
   trailMgr.setFever(false);
   feverLastTap = null;
   lastTapByColor = {}; // FEVER前の位置は古いので接続しない
+  // 場に残った金色★ボタンを通常の×（赤青黄緑）へ戻す
+  // （金色が残らない・以降の色抽選にも金色が混ざらない）
+  for (const ad of bannerMgr.active) {
+    if (ad.state === 'alive' && ad.color === 'gold') {
+      bannerMgr.recolor(ad, CONFIG.colors.names[Math.floor(rnd() * CONFIG.colors.names.length)]);
+    }
+  }
   effects.pop(els.stage.clientWidth / 2, els.stage.clientHeight * 0.4,
     `<b>FEVER BONUS<br>+${payout.toLocaleString()}</b><i class="j-GOLD">${kills} ADS CLOSED</i>`, 'pop-payout');
   // スコアへカウントアップ加算
@@ -672,6 +685,12 @@ function loop() {
   if (state === 'playing') {
     const t = clock.time;
     feverMgr.update(t);
+    // FEVER終盤: 空一面のしだれ柳フィナーレ（1回だけ）
+    if (feverMgr.active && !feverFinaleFired && feverMgr.remainingSec(t) <= 2.2) {
+      feverFinaleFired = true;
+      trailMgr.willowFinale();
+      audioMgr.fireworkBoom();
+    }
     updateBrain();
     spawnTick(t);
     bannerMgr.update(t);

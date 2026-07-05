@@ -63,10 +63,19 @@ export class BannerManager {
     this.pool.push(ad);
   }
 
-  // ×印の色をセット（'red'|'blue'|'yellow'|'green'|'gold'）
+  // ボタンの色をセット（'red'|'blue'|'yellow'|'green'|'gold'）。
+  // FEVER中の金色ボタンは「×」ではなく「★」にして通常ボタンと見分けやすくする
   _applyColor(ad, color) {
     ad.color = color;
     ad.xEl.className = `xbtn c-${color}`;
+    const mark = ad.xEl.firstElementChild;
+    if (mark) mark.textContent = color === 'gold' ? '★' : '×';
+  }
+
+  // 生存中の広告のボタン色を差し替える（FEVER開始/終了時の一括変換用）
+  recolor(ad, color) {
+    if (ad.state !== 'alive') return;
+    this._applyColor(ad, color);
   }
 
   // 1枚スポーンする。color は呼び出し側（同色制御ロジック）が決める。

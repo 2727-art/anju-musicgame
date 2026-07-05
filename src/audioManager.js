@@ -226,6 +226,14 @@ export class AudioManager {
     });
   }
 
+  // 花火フィナーレの「ドーン」という低音（しだれ柳用・控えめ）
+  fireworkBoom() {
+    this._safe(() => {
+      this._tone({ freq: 100, freqEnd: 38, type: 'sine', dur: 0.5, vol: 0.3 });
+      this._tone({ freq: 300, freqEnd: 80, type: 'sawtooth', dur: 0.25, vol: 0.08, filterFreq: 500 });
+    });
+  }
+
   // 12星座コンプリートの特別ファンファーレ（天球チャイムの豪華版）
   zodiacPerfect() {
     this._safe(() => {

@@ -14,7 +14,8 @@ service cloud.firestore {
     match /leaderboards/{boardId}/entries/{uid} {
 
       function isAllowedBoard() {
-        return boardId == 'adbreaker_song001_v1';
+        // v2: FEVER頻度調整（スコア仕様変更）に伴う世代交代。旧v1は読み書きとも閉鎖
+        return boardId == 'adbreaker_song001_v2';
       }
 
       function nonNegIntMax(v, maxV) {
@@ -53,7 +54,7 @@ service cloud.firestore {
           && nonNegIntMax(d.feverTotalBonus, 30000000)
           && nonNegIntMax(d.maxSameColorStreak, 2000)
           && nonNegIntMax(d.seed, 4294967295)
-          && d.gameVersion == '3.0.0'
+          && d.gameVersion == '3.1.0'
           && d.songId == 'song001'
           && d.bpm == 156
           && d.playDurationMs is int

@@ -11,6 +11,7 @@ const COLOR_RGB = {
   yellow: '255,212,0',
   green: '53,224,106',
   gold: '255,201,60',
+  pink: '255,45,149',
   miss: '150,150,165',
 };
 
@@ -426,6 +427,90 @@ export class TrailManager {
     }
   }
 
+  // ---- 花火システム（FEVER中の打ち上げ演出） ----
+  // tier 1: スターマイン（小玉の速い連発） / tier 2: 菊花（尾を引く大輪）
+  // tier 3: しだれ柳（金色の枝垂れが空を覆う）
+  firework({ x, y, tier = 1 }) {
+    if (!this.enabled) return;
+    const R = this.reduced;
+    if (tier <= 1) {
+      // スターマイン: 小さな牡丹玉
+      const palette = [COLOR_RGB.gold, COLOR_RGB.pink, '255,224,133'];
+      const rgb = palette[Math.floor(Math.random() * palette.length)];
+      const n = R ? 8 : 14;
+      for (let i = 0; i < n; i++) {
+        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.3;
+        const v = 130 + Math.random() * 90;
+        this._add({
+          type: 'fw', x, y,
+          vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+          grav: 120, life: 600 + Math.random() * 200, age: 0,
+          rgb, size: 2.4, trailRate: 0,
+        });
+      }
+    } else if (tier === 2) {
+      // 菊花: 尾を引く大輪
+      const rgb = Math.random() < 0.6 ? COLOR_RGB.gold : COLOR_RGB.pink;
+      const n = R ? 12 : 22;
+      for (let i = 0; i < n; i++) {
+        const ang = (Math.PI * 2 * i) / n + Math.random() * 0.2;
+        const v = 150 + Math.random() * 90;
+        this._add({
+          type: 'fw', x, y,
+          vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+          grav: 170, life: 900 + Math.random() * 300, age: 0,
+          rgb, size: 2.8, trailRate: R ? 0.12 : 0.3,
+        });
+      }
+    } else {
+      // しだれ柳: 上向きに開いてから金色の尾を引いて枝垂れる
+      const n = R ? 10 : 18;
+      for (let i = 0; i < n; i++) {
+        const ang = -Math.PI / 2 + ((i / (n - 1)) - 0.5) * 2.4 + Math.random() * 0.1;
+        const v = 170 + Math.random() * 120;
+        this._add({
+          type: 'fw', x, y,
+          vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+          grav: 360, life: 1500 + Math.random() * 500, age: 0,
+          rgb: COLOR_RGB.gold, size: 3, trailRate: R ? 0.25 : 0.55,
+        });
+      }
+    }
+  }
+
+  // 画面下端からの打ち上げロケット。到達点でfirework(tier)が開く
+  skyRocket({ tier = 2, targetX, targetY, dur } = {}) {
+    if (!this.enabled) return;
+    const tx = targetX ?? this.w * (0.15 + Math.random() * 0.7);
+    const ty = targetY ?? this.h * (0.15 + Math.random() * 0.25);
+    const fx = tx + (Math.random() - 0.5) * 80;
+    this._add({
+      type: 'comet',
+      fx, fy: this.h + 20,
+      cx: (fx + tx) / 2 + 24, cy: (this.h + ty) / 2,
+      tx, ty,
+      t: 0,
+      dur: dur ?? 380 + Math.random() * 180,
+      rgb: COLOR_RGB.gold, size: 2.2,
+      dustRate: this.reduced ? 0.25 : 0.5,
+      arriveBurst: 0,
+      fw: tier,
+    });
+  }
+
+  // FEVERフィナーレ: 大玉しだれ柳3発が空を覆う
+  willowFinale() {
+    if (!this.enabled) return;
+    const spots = [
+      [this.w * 0.5, this.h * 0.2],
+      [this.w * 0.2, this.h * 0.3],
+      [this.w * 0.8, this.h * 0.3],
+    ];
+    spots.forEach(([x, y], i) => {
+      this.skyRocket({ tier: 3, targetX: x, targetY: y, dur: 360 + i * 240 });
+    });
+  }
+
   // 12星座コンプリートの全画面セレブレーション（色とりどりのスターバースト＋金シャワー）
   zodiacPerfectBurst() {
     if (!this.enabled) return;
@@ -545,6 +630,8 @@ export class TrailManager {
         this._drawStar(ctx, x, y, p.size * 1.6, p.rgb, 0.9);
         if (t >= 1) {
           for (let b = 0; b < p.arriveBurst; b++) this._dust(p.tx, p.ty, p.rgb, { speed: 70, life: 420 });
+          // 打ち上げロケットは到達点で花火が開く
+          if (p.fw) this.firework({ x: p.tx, y: p.ty, tier: p.fw });
           dead = true;
         }
       } else if (p.type === 'ring') {
@@ -560,6 +647,21 @@ export class TrailManager {
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
           ctx.stroke();
           ctx.globalAlpha = 1;
+        }
+      } else if (p.type === 'fw') {
+        // 花火の星: 重力で垂れ、trailRateに応じて金の尾を残す（しだれ柳）
+        p.age += dt;
+        const k = 1 - p.age / p.life;
+        if (k <= 0) { dead = true; }
+        else {
+          p.vy += p.grav * dt / 1000;
+          p.vx *= 1 - 0.5 * dt / 1000; // 空気抵抗で横速度が減衰して枝垂れる
+          p.x += p.vx * dt / 1000;
+          p.y += p.vy * dt / 1000;
+          if (p.trailRate && Math.random() < p.trailRate) {
+            this._dust(p.x, p.y, p.rgb, { speed: 6, size: 1.6, life: 520 });
+          }
+          this._drawStar(ctx, p.x, p.y, p.size * (0.4 + 0.6 * k), p.rgb, k);
         }
       } else if (p.type === 'shard') {
         p.age += dt;
