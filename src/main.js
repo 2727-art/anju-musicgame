@@ -21,6 +21,7 @@ import { matchZodiac } from './zodiacMatcher.js';
 import { tellFortune, tellDailyFortune } from './fortuneTeller.js';
 import { ZODIAC_LIST } from './zodiacMatcher.js';
 import { loadZodiacStore, saveZodiacStore } from './zodiacCollectionStore.js';
+import { cachedBlobURL } from './assetCache.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -72,7 +73,9 @@ const els = {
 
 els.bg.style.backgroundImage = `url("${encodeURIComponent(CONFIG.assets.background)}")`;
 
-const audio = new Audio(encodeURIComponent(CONFIG.assets.bgm));
+// BGMはローディング中にキャッシュ優先でダウンロードしてから src をセットする
+// （読み込み完了までSTARTを出さないので「無音でゲームが始まる」ことがない）
+const audio = new Audio();
 audio.preload = 'auto';
 
 const settings = new SettingsManager();
@@ -209,17 +212,55 @@ function syncSettingsUI() {
 }
 
 // ---------- プリロード ----------
-function loadImage(name) {
-  return new Promise((resolve) => {
-    const url = `${encodeURIComponent(AD_DIR)}/${encodeURIComponent(name)}`;
-    const img = new Image();
-    img.onload = () => resolve({ name, url, w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = () => {
-      console.warn(`広告画像の読み込みに失敗: ${name}`);
-      resolve(null);
-    };
-    img.src = url;
-  });
+async function loadImage(name) {
+  const rawUrl = `${encodeURIComponent(AD_DIR)}/${encodeURIComponent(name)}`;
+  try {
+    // Cache Storage優先（2回目以降はネットワークを使わない）
+    const url = await cachedBlobURL(rawUrl);
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ name, url, w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  } catch (e) {
+    console.warn(`広告画像の読み込みに失敗: ${name}`);
+    return null;
+  }
+}
+
+// BGMをキャッシュ優先・進捗表示付きで読み込み、再生可能になるまで待つ。
+// これが終わるまでSTARTボタンは表示されない。
+async function preloadBGM() {
+  els.loadingBar.style.width = '0%';
+  els.loadingText.textContent = '♪ 楽曲を読み込み中…';
+  try {
+    const url = await cachedBlobURL(encodeURIComponent(CONFIG.assets.bgm), (p) => {
+      const pct = Math.round(p * 100);
+      els.loadingBar.style.width = `${pct}%`;
+      els.loadingText.textContent = `♪ 楽曲をダウンロード中… ${pct}%`;
+    });
+    audio.src = url;
+  } catch (e) {
+    // キャッシュもfetchも失敗 → 従来のストリーミング再生にフォールバック
+    console.warn('BGMの事前読み込みに失敗。ストリーミング再生にフォールバックします。', e);
+    audio.src = encodeURIComponent(CONFIG.assets.bgm);
+  }
+  els.loadingBar.style.width = '100%';
+  // 再生可能になるまで待つ（blobなら即。フォールバック時は最大8秒で妥協して進む）
+  if (audio.readyState < 4) {
+    await new Promise((resolve) => {
+      let tid = 0;
+      const done = () => {
+        audio.removeEventListener('canplaythrough', done);
+        clearTimeout(tid);
+        resolve();
+      };
+      audio.addEventListener('canplaythrough', done);
+      tid = setTimeout(done, 8000);
+      audio.load();
+    });
+  }
 }
 
 // 画像が1枚もない場合の仮バナー（canvasで生成）
@@ -1068,6 +1109,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 (async () => {
   applySettings();
   const images = await preloadAll();
+  await preloadBGM(); // BGMが再生可能になるまでSTARTを出さない
   deck = new Deck(images.map((im) => im.name), rnd);
   bannerMgr = new BannerManager({
     bannerLayer: els.bannerLayer,
