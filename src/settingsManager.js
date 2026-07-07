@@ -1,12 +1,13 @@
 // ゲーム設定の管理（localStorage保存）。
 const KEY = 'adbreaker.settings.v1';
+const DEBUG_DEFAULT_OFF_KEY = 'adbreaker.settings.debugDefaultOff.v1';
 
 const DEFAULTS = {
   bgmVol: 0.8,       // 0.0 - 1.0
   seVol: 0.8,        // 0.0 - 1.0
   haptics: true,
   effects: 'NORMAL', // NORMAL | REDUCED
-  debug: true,
+  debug: false,
   trail: true,       // 流れ星エフェクト（Phase 4A）
   brain: true,       // TARGET COLOR CHALLENGE（Phase 4A）
 };
@@ -24,6 +25,11 @@ export class SettingsManager {
         if (this.data.effects !== 'NORMAL' && this.data.effects !== 'REDUCED') {
           this.data.effects = 'NORMAL';
         }
+      }
+      if (!localStorage.getItem(DEBUG_DEFAULT_OFF_KEY)) {
+        this.data.debug = false;
+        localStorage.setItem(KEY, JSON.stringify(this.data));
+        localStorage.setItem(DEBUG_DEFAULT_OFF_KEY, '1');
       }
     } catch (e) {
       console.warn('設定の読み込みに失敗したためデフォルトを使用します。', e);
