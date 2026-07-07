@@ -4,7 +4,7 @@
 //
 // 注意: bgm.mp3 を同名のまま差し替えた場合は CACHE_NAME のバージョンを上げること
 // （広告画像はファイル名が変わるので自動的に新規取得される）。
-const CACHE_NAME = 'adbreaker-assets-v1';
+const CACHE_NAME = 'adbreaker-assets-v2';
 
 // 旧バージョンのキャッシュを掃除（初回呼び出し時に1度だけ）
 let cleaned = false;
