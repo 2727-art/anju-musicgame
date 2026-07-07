@@ -123,6 +123,31 @@ const zodiacRunCounts = new Map();    // name → {zodiac, count}（今日の運
 let colorTapCounts = { red: 0, blue: 0, yellow: 0, green: 0 }; // ラッキーカラー判定用
 let zodiacPerfectThisRun = false;
 
+function isSmartphoneViewport() {
+  const coarsePointer =
+    (window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false) ||
+    navigator.maxTouchPoints > 0;
+  const hoverNone = window.matchMedia ? window.matchMedia('(hover: none)').matches : false;
+  const screenMin = Math.min(window.screen.width || window.innerWidth, window.screen.height || window.innerHeight);
+  const viewportMin = Math.min(window.innerWidth, window.innerHeight);
+  return coarsePointer && hoverNone && Math.min(screenMin, viewportMin) <= 600;
+}
+
+function requestSmartphoneFullscreen() {
+  if (!isSmartphoneViewport()) return;
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+
+  const root = document.documentElement;
+  try {
+    const result = root.requestFullscreen
+      ? root.requestFullscreen({ navigationUI: 'hide' })
+      : (root.webkitRequestFullscreen || root.msRequestFullscreen)?.call(root);
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+  } catch (e) {
+    // Fullscreen APIは端末・ブラウザ差が大きいので、失敗してもゲーム開始を優先する。
+  }
+}
+
 function makeChipEl(symbol, name, dim) {
   const chip = document.createElement('span');
   chip.className = dim ? 'zc-chip zc-dim' : 'zc-chip';
@@ -866,6 +891,7 @@ function endGame() {
 
 // ---------- 状態遷移 ----------
 function startGame() {
+  requestSmartphoneFullscreen();
   state = 'playing';
   runSeed = makeSeed();
   rng = mulberry32(runSeed);
