@@ -58,8 +58,8 @@ service cloud.firestore {
           && d.songId == 'song001'
           && d.bpm == 156
           && d.playDurationMs is int
-          && d.playDurationMs >= 242000
-          && d.playDurationMs <= 282000
+          && d.playDurationMs >= 220000
+          && d.playDurationMs <= 260000
           && d.createdAt is timestamp
           && d.updatedAt == request.time;
       }

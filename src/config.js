@@ -6,7 +6,7 @@ export const CONFIG = {
 
   song: {
     id: 'song001',
-    durationSec: 262, // 4:22
+    durationSec: 240, // 4:00
   },
 
   assets: {
@@ -113,9 +113,9 @@ export const CONFIG = {
       feverClearedAdsMax: 2000,
       feverBonusMax: 30000000,
       streakMax: 2000,
-      // 実プレイ時間（ポーズ除外）: 曲長 4:22 ± 20秒
-      playDurationMinMs: 242000,
-      playDurationMaxMs: 282000,
+      // 実プレイ時間（ポーズ除外）: 曲長 4:00 ± 20秒
+      playDurationMinMs: 220000,
+      playDurationMaxMs: 260000,
     },
   },
 
